@@ -9,7 +9,7 @@ services:
     restart: always
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.predictif-production.rule=Host(`predictifif-mcp.adrienpelfresne.com`)"
+      - "traefik.http.routers.predictif-production.rule=Host(`predictif-mcp.adrienpelfresne.com`)"
       - "traefik.http.routers.predictif-production.tls=true"
       - "traefik.http.routers.predictif-production.entrypoints=web,websecure"
       - "traefik.http.routers.predictif-production.tls.certresolver=letsencrypt"
