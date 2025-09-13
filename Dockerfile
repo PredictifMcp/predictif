@@ -10,6 +10,8 @@ RUN uv sync --frozen
 
 COPY . .
 
-EXPOSE 3019
+EXPOSE 3000
+
+ENV PORT=3000
 
 CMD ["uv", "run", "python", "main.py"]

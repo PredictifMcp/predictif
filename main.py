@@ -1,32 +1,25 @@
-from flask import Flask, jsonify
-from flask_cors import CORS
-import pandas as pd
-from pydantic import Field
+"""
+Predictif MCP Server - ML Model Training and Prediction Tools
+"""
+
+import os
 from mcp.server.fastmcp import FastMCP
+from predictif.tools import register_tools
 
-# Create Flask app with CORS
-app = Flask(__name__)
-CORS(app)
+# Get port from environment variable or default to 3000
+port = int(os.getenv("PORT", 3000))
 
-# Create FastMCP server
 mcp = FastMCP(
-    name="Predictif MCP Server",
-    host="0.0.0.0",
-    port=3019,
+    name="Predictif ML Server",
+    host="0.0.0.0",  # Bind to all interfaces for Docker
+    port=port,
+    stateless_http=True,  # Better for containerized environments
+    debug=False,  # Disable debug in production
 )
 
-# Add Flask routes for health checks
-@app.route('/health')
-def health():
-    return jsonify({"status": "healthy", "service": "Predictif MCP Server"})
-
-@mcp.tool(
-    title="Echo Tool",
-    description="Echo the input text",
-)
-def echo(text: str = Field(description="The text to echo")) -> str:
-    return text
+# Register our tools
+register_tools(mcp)
 
 if __name__ == "__main__":
-    # Run MCP server with SSE transport for Le Chat
+    # Run with SSE transport for better reverse proxy compatibility
     mcp.run(transport="sse")
