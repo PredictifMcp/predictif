@@ -14,18 +14,15 @@ app = fastmcp.FastMCP("Predictif")
 
 
 def setup_server() -> None:
-    """Set up the MCP server with tools and resources."""
     setup_logging()
     setup_tools(app)
     setup_resources(app)
 
 
 def main() -> None:
-    """Main entry point."""
     setup_server()
-    app.run()
+    app.run(transport="streamable-http")
 
 
 if __name__ == "__main__":
     main()
-
