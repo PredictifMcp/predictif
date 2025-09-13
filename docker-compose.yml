@@ -3,7 +3,7 @@ services:
     build: .
     container_name: predictif-production
     expose:
-      - 3019
+      - 3000
     environment:
       - MISTRAL_API_KEY=${MISTRAL_API_KEY}
     networks:
@@ -15,7 +15,7 @@ services:
       - "traefik.http.routers.predictif-production.tls=true"
       - "traefik.http.routers.predictif-production.entrypoints=web,websecure"
       - "traefik.http.routers.predictif-production.tls.certresolver=letsencrypt"
-      - "traefik.http.services.predictif-production.loadbalancer.server.port=3019"
+      - "traefik.http.services.predictif-production.loadbalancer.server.port=3000"
 
 networks:
   traefik_public:
