@@ -12,4 +12,5 @@ dependencies = [
     "mistralai>=1.0.0",
     "requests",
     "huggingface-hub",
+    "tabulate",
 ]
