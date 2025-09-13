@@ -1,6 +1,6 @@
 # Prédictif
 
-![Prédictif_logo](./logo_prédictif.png)
+![ogo](./logo.png)
 
 ## About
 
