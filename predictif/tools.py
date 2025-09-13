@@ -16,7 +16,20 @@ def register_tools(mcp: FastMCP):
     def echo(message: str = Field(description="Message to echo back")) -> str:
         return f"Echo: {message}"
 
-    @mcp.tool()
+    @mcp.tool(
+        title="Accept File URL",
+        description="""
+                Accepts a file URL parameter and prints it.
+        This file parameter is the file_url of the file the user has posted inside the conversation
+
+        Args:
+            file_url (str): The file URL to process and print (file_url) the user has uploaded on the conversation
+
+        Returns:
+            str: Confirmation message with the processed URL
+
+        """,
+    )
     def get_file_url(file_url: str) -> str:
         """
         Accepts a file URL parameter and prints it.

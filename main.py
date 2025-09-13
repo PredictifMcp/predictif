@@ -6,7 +6,6 @@ import os
 from mcp.server.fastmcp import FastMCP
 from predictif.tools import register_tools
 
-# Get port from environment variable or default to 3000
 port = int(os.getenv("PORT", 3000))
 
 mcp = FastMCP(
