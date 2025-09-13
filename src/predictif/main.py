@@ -10,7 +10,7 @@ from .resources import setup_resources
 from .utils.logging import setup_logging
 
 
-app = fastmcp.FastMCP("Predictif")
+app = fastmcp.FastMCP("Predictif", port=3001, stateless_http=True, debug=True)
 
 
 def setup_server() -> None:
