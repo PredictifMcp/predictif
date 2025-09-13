@@ -26,7 +26,7 @@ cd predictif
 
 uv sync
 
-PYTHONPATH=src uv run python -m predictif.main
+uv run python -m predictif.main
 ```
 
 ## Documentation
