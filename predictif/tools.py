@@ -335,23 +335,23 @@ def register_tools(mcp: FastMCP):
             str: Clean, structured report with model information
         """
         base_dir = Path("models") / model_id
-        results_path = base_dir / "results.json"
+        results_path = base_dir / "metadata.json"
         model_path = base_dir / "model.pkl"  # currently unused
 
         if not base_dir.exists():
             return f"No directory found for model_id='{model_id}'"
 
         if not results_path.exists():
-            return f"results.json not found in {base_dir}"
+            return f"metadata.json not found in {base_dir}"
 
         try:
             with open(results_path, "r") as f:
                 metadata: Dict = json.load(f)
         except Exception as e:
-            return f"⚠️ Could not read results.json: {e}"
+            return f"⚠️ Could not read metadata.json: {e}"
 
         if not isinstance(metadata, dict) or not metadata:
-            return "⚠️ results.json is empty or not a valid JSON object."
+            return "⚠️ metadata.json is empty or not a valid JSON object."
 
         # Convert dict into rows for a table
         table_data = [(str(k), str(v)) for k, v in metadata.items()]
@@ -363,7 +363,7 @@ def register_tools(mcp: FastMCP):
     **Model ID:** {model_id}
 
     📁 Files:
-    - results.json ✅
+    - metadata.json ✅
     - model.pkl {"✅" if model_path.exists() else "❌"}
 
     {table}
