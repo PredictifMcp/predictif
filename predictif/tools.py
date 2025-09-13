@@ -4,7 +4,9 @@ Basic tools for Predictif MCP Server
 
 import os
 import io
+import json
 import pandas as pd
+from pathlib import Path
 from pydantic import Field
 from mcp.server.fastmcp import FastMCP
 from mistralai import Mistral
@@ -220,3 +222,96 @@ def register_tools(mcp: FastMCP):
             )
         except Exception as e:
             return f"Error analyzing document {document_id} as CSV: {str(e)}"
+
+    @mcp.tool(
+        title="Save Document Text to File",
+        description="Extracts text content from a document and saves it as a file in datasets/ directory. Use list_user_libraries() first to get library ID, then list_library_documents() to get document ID.",
+    )
+    def save_document_text_to_file(
+        library_id: str = Field(
+            description="ID of the library containing the document (get from list_user_libraries())"
+        ),
+        document_id: str = Field(
+            description="ID of the document to save (get from list_library_documents())"
+        ),
+        custom_filename: str = Field(
+            default="",
+            description="Custom filename (optional, will use document name if not provided)",
+        ),
+    ) -> str:
+        """
+        Extracts text from a document and saves it as a file in datasets/ directory.
+
+        Workflow:
+        1. Call list_user_libraries() to find library ID from library name
+        2. Call list_library_documents(library_id) to find document ID from document name
+        3. Call this function with both IDs to save the text content as a file
+
+        Args:
+            library_id (str): The ID of the library containing the document
+            document_id (str): The ID of the document to save
+            custom_filename (str): Optional custom filename (will preserve original extension)
+
+        Returns:
+            str: Full path where the text file was saved
+        """
+        try:
+            # Get document info to extract name and extension
+            documents = mistral_client.beta.libraries.documents.list(
+                library_id=library_id
+            ).data
+
+            document_name = None
+            document_extension = None
+            for doc in documents:
+                if doc.id == document_id:
+                    document_name = doc.name
+                    document_extension = doc.extension
+                    break
+
+            if not document_name:
+                return f"Error: Document with ID {document_id} not found in library {library_id}"
+
+            # Extract text content from document
+            extracted_text = mistral_client.beta.libraries.documents.text_content(
+                library_id=library_id, document_id=document_id
+            )
+            text_content = extracted_text.text
+
+            if not text_content.strip():
+                return "Error: Document appears to be empty"
+
+            # Generate filename
+            if custom_filename:
+                # If custom filename is provided, preserve original extension if it has one
+                if "." in custom_filename:
+                    filename = custom_filename
+                else:
+                    # Add original extension to custom filename
+                    filename = (
+                        f"{custom_filename}.{document_extension}"
+                        if document_extension
+                        else f"{custom_filename}.txt"
+                    )
+            else:
+                # Use original document name
+                filename = document_name
+
+            # Create datasets directory if it doesn't exist
+            datasets_dir = Path("datasets")
+            datasets_dir.mkdir(exist_ok=True)
+
+            # Full file path
+            file_path = datasets_dir / filename
+
+            # Save text content to file
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(text_content)
+
+            # Get absolute path for return
+            absolute_path = file_path.resolve()
+
+            return f"✅ Document saved successfully!\n📍 File saved at: {absolute_path}\n📄 Source: {document_name}\n📊 Size: {len(text_content)} characters"
+
+        except Exception as e:
+            return f"Error saving document {document_id} to file: {str(e)}"
