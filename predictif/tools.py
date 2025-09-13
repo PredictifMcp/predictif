@@ -78,9 +78,7 @@ def register_tools(mcp: FastMCP):
 
             result = f"Documents in library {library_id}:\n"
             for doc in doc_list:
-                result += (
-                    f"- {doc.name}: {doc.extension} with {doc.number_of_pages} pages\n"
-                )
+                result += f"- {doc.name}: {doc.extension} with {doc.number_of_pages} pages with id {doc.id}\n"
                 if hasattr(doc, "summary") and doc.summary:
                     result += f"  Summary: {doc.summary}\n"
 
