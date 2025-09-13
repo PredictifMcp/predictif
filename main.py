@@ -2,7 +2,7 @@ from mcp.server.fastmcp import FastMCP
 import pandas as pd
 from pydantic import Field
 
-mcp = FastMCP("Predictif MCP Server", port=3000, stateless_http=True, debug=True)
+mcp = FastMCP("Predictif MCP Server", port=3019, stateless_http=True, debug=True)
 
 
 @mcp.tool(
