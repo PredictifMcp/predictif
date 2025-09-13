@@ -6,7 +6,7 @@ from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
 from .trainer import MLManager
-from .models import MLConfig
+from .models import MLConfig, ModelType
 
 # Global manager instance
 ml_manager = MLManager()
@@ -17,24 +17,32 @@ def register_ml_tools(mcp: FastMCP):
 
     @mcp.tool(
         title="Train ML Model",
-        description="Train a RandomForest classifier on HF Spaces and auto-deploy inference Space",
+        description="Train a machine learning classifier on HF Spaces and auto-deploy inference Space",
     )
     def train_ml_model(
         hf_token: str = Field(description="Hugging Face API token"),
-        file_url: str = Field(description="URL of the CSV dataset file attachment from chat with features and 'label' column")
+        file_url: str = Field(description="URL of the CSV dataset file attachment from chat with features and 'label' column"),
+        model_type: str = Field(default="random_forest", description="Type of model to train: random_forest, svm, logistic_regression, gradient_boosting")
     ) -> str:
         """Train ML model and deploy inference Space"""
+
+        # Validate model type
+        try:
+            model_type_enum = ModelType(model_type)
+        except ValueError:
+            return f"Invalid model type '{model_type}'. Valid options: {', '.join([t.value for t in ModelType])}"
 
         # Generate model name from job ID
         import uuid
         job_id = str(uuid.uuid4())
-        model_name = f"predictif-model-{job_id[:8]}"
+        model_name = f"predictif-{model_type.replace('_', '')}-{job_id[:8]}"
 
         # Create configuration
         config = MLConfig(
             token=hf_token,
             csv_content=file_url,  # Will be downloaded in training script
-            model_name=model_name
+            model_name=model_name,
+            model_type=model_type_enum
         )
 
         # Create and start job with pre-generated ID
@@ -54,11 +62,12 @@ def register_ml_tools(mcp: FastMCP):
 
 Job ID: {job_id}
 Model Name: {model_name}
+Model Type: {model_type_enum.value}
 Training Space: {job.training_space_url}
 
 The training will:
 1. Download and process your CSV file
-2. Train a RandomForest classifier
+2. Train a {model_type_enum.value} classifier
 3. Evaluate the model performance
 4. Automatically deploy an inference Space with Gradio UI
 5. Make the model available for predictions
@@ -151,3 +160,77 @@ Training Space: {job.training_space_url}"""
 
         except Exception as e:
             return f"Error making predictions: {e}"
+
+    @mcp.tool(
+        title="List Trained Models",
+        description="List all trained and deployed models",
+    )
+    def list_trained_models() -> str:
+        """List all models in the registry"""
+        models = ml_manager.list_models()
+
+        if not models:
+            return "No trained models found."
+
+        model_list = ["Available trained models:"]
+        for model_name, job in models.items():
+            status = "✅ Available" if job.status == "completed" else f"❌ {job.status}"
+            accuracy = f" (Accuracy: {job.accuracy:.4f})" if job.accuracy else ""
+            model_list.append(f"• {model_name} - {job.model_type}{accuracy} - {status}")
+
+        return "\n".join(model_list)
+
+    @mcp.tool(
+        title="Get Model Info",
+        description="Get detailed information about a specific trained model",
+    )
+    def get_model_info(
+        model_name: str = Field(description="Name of the model to get info for")
+    ) -> str:
+        """Get detailed model information"""
+        model = ml_manager.get_model(model_name)
+
+        if not model:
+            return f"Model '{model_name}' not found. Use list_trained_models to see available models."
+
+        info = f"""Model Information: {model_name}
+
+Type: {model.model_type}
+Status: {model.status}
+Job ID: {model.job_id}
+Accuracy: {model.accuracy:.4f if model.accuracy else 'N/A'}
+
+URLs:
+• Training Space: {model.training_space_url}
+• Inference Space: {model.inference_space_url or 'Not available'}
+
+Features: {', '.join(model.feature_names) if model.feature_names else 'N/A'}
+Model Parameters: {model.config.model_params}"""
+
+        return info
+
+    @mcp.tool(
+        title="List Models by Type",
+        description="List models filtered by type (random_forest, svm, logistic_regression, gradient_boosting)",
+    )
+    def list_models_by_type(
+        model_type: str = Field(description="Type of models to list: random_forest, svm, logistic_regression, gradient_boosting")
+    ) -> str:
+        """List models by type"""
+        try:
+            model_type_enum = ModelType(model_type)
+        except ValueError:
+            return f"Invalid model type '{model_type}'. Valid options: {', '.join([t.value for t in ModelType])}"
+
+        models = ml_manager.get_models_by_type(model_type_enum)
+
+        if not models:
+            return f"No {model_type} models found."
+
+        model_list = [f"Available {model_type} models:"]
+        for model_name, job in models.items():
+            status = "✅ Available" if job.status == "completed" else f"❌ {job.status}"
+            accuracy = f" (Accuracy: {job.accuracy:.4f})" if job.accuracy else ""
+            model_list.append(f"• {model_name}{accuracy} - {status}")
+
+        return "\n".join(model_list)

@@ -6,7 +6,7 @@ import uuid
 import json
 from typing import Dict, Optional
 from huggingface_hub import HfApi
-from .models import MLConfig, TrainingJob
+from .models import MLConfig, TrainingJob, ModelRegistry, ModelType
 
 
 class MLManager:
@@ -14,6 +14,7 @@ class MLManager:
 
     def __init__(self):
         self.active_jobs: Dict[str, TrainingJob] = {}
+        self.model_registry = ModelRegistry()
 
     def create_training_job(self, config: MLConfig) -> TrainingJob:
         """Create a new training job"""
@@ -63,6 +64,28 @@ class MLManager:
     def get_job_status(self, job_id: str) -> Optional[TrainingJob]:
         """Get status of a training job"""
         return self.active_jobs.get(job_id)
+
+    def complete_training_job(self, job_id: str, accuracy: float, feature_names: list, inference_space_url: str):
+        """Mark a training job as completed and add to model registry"""
+        if job_id in self.active_jobs:
+            job = self.active_jobs[job_id]
+            job.status = "completed"
+            job.accuracy = accuracy
+            job.feature_names = feature_names
+            job.inference_space_url = inference_space_url
+            self.model_registry.add_model(job)
+
+    def list_models(self) -> Dict[str, TrainingJob]:
+        """List all trained models"""
+        return self.model_registry.list_models()
+
+    def get_model(self, model_name: str) -> Optional[TrainingJob]:
+        """Get a specific model by name"""
+        return self.model_registry.get_model(model_name)
+
+    def get_models_by_type(self, model_type: ModelType) -> Dict[str, TrainingJob]:
+        """Get models by type"""
+        return self.model_registry.get_models_by_type(model_type)
 
     def _create_training_space(self, api: HfApi, space_repo_id: str, config: MLConfig, job_id: str):
         """Create the training Space with scikit-learn"""
@@ -117,11 +140,15 @@ class MLManager:
         )
 
     def _generate_training_script(self, config: MLConfig, job_id: str) -> str:
-        """Generate training script for RandomForest"""
+        """Generate training script for specified model type"""
+        # Generate model-specific imports and parameters
+        model_imports = self._get_model_imports(config.model_type)
+        model_creation = self._get_model_creation_code(config)
+
         return f"""
 import pandas as pd
 import numpy as np
-from sklearn.ensemble import RandomForestClassifier
+{model_imports}
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, classification_report
 import joblib
@@ -130,14 +157,14 @@ from huggingface_hub import HfApi
 import os
 
 def main():
-    print("Starting RandomForest training...")
+    print("Starting {config.model_type.value} training...")
 
     # Load dataset from URL
     import json
     with open("dataset_config.json", "r") as f:
-        config = json.load(f)
+        dataset_config = json.load(f)
 
-    file_url = config["file_url"]
+    file_url = dataset_config["file_url"]
     print(f"Downloading dataset from: {{file_url}}")
 
     df = pd.read_csv(file_url)
@@ -153,21 +180,17 @@ def main():
 
     # Train-test split
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state={config.random_state}, stratify=y
+        X, y, test_size={config.test_size}, random_state={config.random_state}, stratify=y
     )
 
-    # Train RandomForest
-    rf = RandomForestClassifier(
-        n_estimators={config.n_estimators},
-        max_depth={config.max_depth},
-        random_state={config.random_state}
-    )
+    # Create and train model
+    {model_creation}
 
     print("Training model...")
-    rf.fit(X_train, y_train)
+    model.fit(X_train, y_train)
 
     # Evaluate
-    y_pred = rf.predict(X_test)
+    y_pred = model.predict(X_test)
     accuracy = accuracy_score(y_test, y_pred)
 
     print(f"Accuracy: {{accuracy:.4f}}")
@@ -175,16 +198,18 @@ def main():
     print(classification_report(y_test, y_pred))
 
     # Save model
-    joblib.dump(rf, "model.pkl")
+    joblib.dump(model, "model.pkl")
 
     # Save metadata
     metadata = {{
         "job_id": "{job_id}",
         "model_name": "{config.model_name}",
+        "model_type": "{config.model_type.value}",
         "accuracy": accuracy,
         "feature_names": feature_columns,
         "n_classes": len(y.unique()),
-        "classes": y.unique().tolist()
+        "classes": y.unique().tolist(),
+        "model_params": {json.dumps(config.model_params)}
     }}
 
     with open("metadata.json", "w") as f:
@@ -368,6 +393,44 @@ if __name__ == "__main__":
 if __name__ == "__main__":
     main()
 """
+
+    def _get_model_imports(self, model_type: ModelType) -> str:
+        """Get the appropriate sklearn imports for the model type"""
+        if model_type == ModelType.RANDOM_FOREST:
+            return "from sklearn.ensemble import RandomForestClassifier"
+        elif model_type == ModelType.SVM:
+            return "from sklearn.svm import SVC"
+        elif model_type == ModelType.LOGISTIC_REGRESSION:
+            return "from sklearn.linear_model import LogisticRegression"
+        elif model_type == ModelType.GRADIENT_BOOSTING:
+            return "from sklearn.ensemble import GradientBoostingClassifier"
+        else:
+            return "from sklearn.ensemble import RandomForestClassifier"
+
+    def _get_model_creation_code(self, config: MLConfig) -> str:
+        """Generate model creation code with parameters"""
+        params = []
+        for key, value in config.model_params.items():
+            if isinstance(value, str):
+                params.append(f'{key}="{value}"')
+            else:
+                params.append(f'{key}={value}')
+
+        # Add random_state to all models
+        params.append(f'random_state={config.random_state}')
+
+        param_str = ', '.join(params)
+
+        if config.model_type == ModelType.RANDOM_FOREST:
+            return f"model = RandomForestClassifier({param_str})"
+        elif config.model_type == ModelType.SVM:
+            return f"model = SVC({param_str}, probability=True)"  # Enable probability for predict_proba
+        elif config.model_type == ModelType.LOGISTIC_REGRESSION:
+            return f"model = LogisticRegression({param_str})"
+        elif config.model_type == ModelType.GRADIENT_BOOSTING:
+            return f"model = GradientBoostingClassifier({param_str})"
+        else:
+            return f"model = RandomForestClassifier({param_str})"
 
     def _generate_dockerfile(self) -> str:
         """Generate Dockerfile for training"""
