@@ -11,15 +11,13 @@ port = int(os.getenv("PORT", 3000))
 
 mcp = FastMCP(
     name="Predictif ML Server",
-    host="0.0.0.0",  # Bind to all interfaces for Docker
+    host="0.0.0.0",
     port=port,
-    stateless_http=True,  # Better for containerized environments
-    debug=False,  # Disable debug in production
+    stateless_http=True,
+    debug=False,
 )
 
-# Register our tools
 register_tools(mcp)
 
 if __name__ == "__main__":
-    # Run with SSE transport for better reverse proxy compatibility
     mcp.run(transport="sse")
