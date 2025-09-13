@@ -1,0 +1,19 @@
+services:
+  predictif:
+    build: .
+    container_name: predictif-mcp
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.${APP_NAME}-staging.rule=Host(`predictif.adrienpelfresne.com`)"
+      - "traefik.http.routers.${APP_NAME}-staging.tls=true"
+      - "traefik.http.routers.${APP_NAME}-staging.entrypoints=web,websecure"
+      - "traefik.http.routers.${APP_NAME}-staging.tls.certresolver=letsencrypt"
+      - "traefik.http.services.${APP_NAME}-staging.loadbalancer.server.port=80"
+
+networks:
+  traefik_public:
+    external: true
+
