@@ -226,81 +226,94 @@ def register_tools(mcp: FastMCP):
             return f"Error analyzing document {document_id} as CSV: {str(e)}"
 
     @mcp.tool(
-        title="Get Document Signed URLs",
-        description="Retrieves secure, time-limited signed URLs for accessing document content. Use list_user_libraries() first to get library ID, then list_library_documents() to get document ID.",
+        title="Save Document Text to File",
+        description="Extracts text content from a document and saves it as a file in datasets/ directory. Use list_user_libraries() first to get library ID, then list_library_documents() to get document ID.",
     )
-    def get_document_signed_urls(
+    def save_document_text_to_file(
         library_id: str = Field(
             description="ID of the library containing the document (get from list_user_libraries())"
         ),
         document_id: str = Field(
-            description="ID of the document to get signed URLs for (get from list_library_documents())"
+            description="ID of the document to save (get from list_library_documents())"
+        ),
+        custom_filename: str = Field(
+            default="",
+            description="Custom filename (optional, will use document name if not provided)",
         ),
     ) -> str:
         """
-        Generates secure, time-limited signed URLs for document access using Mistral's API.
-
-        This function uses the Mistral API client's `extracted_text_signed_url()` method to:
-        - Generate a signed URL for accessing the document's extracted text content
-        - Generate a signed URL for downloading the original raw document file
-        - Provide secure, temporary access without exposing permanent URLs
+        Extracts text from a document and saves it as a file in datasets/ directory.
 
         Workflow:
         1. Call list_user_libraries() to find library ID from library name
         2. Call list_library_documents(library_id) to find document ID from document name
-        3. Call this function with both IDs to get secure access URLs
+        3. Call this function with both IDs to save the text content as a file
 
         Args:
             library_id (str): The ID of the library containing the document
-            document_id (str): The ID of the document to generate signed URLs for
+            document_id (str): The ID of the document to save
+            custom_filename (str): Optional custom filename (will preserve original extension)
 
         Returns:
-            str: Structured output containing signed URLs and usage instructions
+            str: Full path where the text file was saved
         """
         try:
-            # Use Mistral API client's extracted_text_signed_url method
-            # This method returns both text content and raw document signed URLs
-            signed_urls_response = mistral_client.beta.libraries.documents.extracted_text_signed_url(
-                library_id=library_id,
-                document_id=document_id
+            # Get document info to extract name and extension
+            documents = mistral_client.beta.libraries.documents.list(
+                library_id=library_id
+            ).data
+
+            document_name = None
+            document_extension = None
+            for doc in documents:
+                if doc.id == document_id:
+                    document_name = doc.name
+                    document_extension = doc.extension
+                    break
+
+            if not document_name:
+                return f"Error: Document with ID {document_id} not found in library {library_id}"
+
+            # Extract text content from document
+            extracted_text = mistral_client.beta.libraries.documents.text_content(
+                library_id=library_id, document_id=document_id
             )
+            text_content = extracted_text.text
 
-            # Build structured response
-            result = []
-            result.append(f"Signed URLs for Document {document_id}:")
-            result.append("=" * 50)
-            result.append("")
+            if not text_content.strip():
+                return "Error: Document appears to be empty"
 
-            # Display available signed URLs from the API response
-            urls_found = False
+            # Generate filename
+            if custom_filename:
+                # If custom filename is provided, preserve original extension if it has one
+                if "." in custom_filename:
+                    filename = custom_filename
+                else:
+                    # Add original extension to custom filename
+                    filename = (
+                        f"{custom_filename}.{document_extension}"
+                        if document_extension
+                        else f"{custom_filename}.txt"
+                    )
+            else:
+                # Use original document name
+                filename = document_name
 
-            if hasattr(signed_urls_response, 'signed_url') and signed_urls_response.signed_url:
-                result.append("🔗 Extracted Text Content URL:")
-                result.append(f"  {signed_urls_response.signed_url}")
-                result.append("  ↳ Access the processed, extracted text content from the document")
-                result.append("")
-                urls_found = True
+            # Create datasets directory if it doesn't exist
+            datasets_dir = Path("datasets")
+            datasets_dir.mkdir(exist_ok=True)
 
-            if hasattr(signed_urls_response, 'raw_signed_url') and signed_urls_response.raw_signed_url:
-                result.append("📁 Raw Document Download URL:")
-                result.append(f"  {signed_urls_response.raw_signed_url}")
-                result.append("  ↳ Download the original document file in its native format")
-                result.append("")
-                urls_found = True
+            # Full file path
+            file_path = datasets_dir / filename
 
-            if not urls_found:
-                result.append("❌ No signed URLs available for this document")
-                result.append("")
+            # Save text content to file
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(text_content)
 
-            # Usage information
-            result.append("📋 Important Notes:")
-            result.append("  • These URLs are time-limited and will expire")
-            result.append("  • URLs provide secure, temporary access to document content")
-            result.append("  • Text Content URL: Returns processed text (ideal for analysis)")
-            result.append("  • Raw Document URL: Returns original file (ideal for download)")
-            result.append("  • Use these URLs directly in HTTP requests, browsers, or applications")
+            # Get absolute path for return
+            absolute_path = file_path.resolve()
 
-            return "\n".join(result)
+            return f"✅ Document saved successfully!\n📍 File saved at: {absolute_path}\n📄 Source: {document_name}\n📊 Size: {len(text_content)} characters"
 
         except Exception as e:
             return f"Error generating signed URLs for document {document_id} in library {library_id}: {str(e)}"
