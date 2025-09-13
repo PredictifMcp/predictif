@@ -88,6 +88,7 @@ def describe_dataset() -> str:
         
         dtype = df[col].dtype
         n_unique = df[col].nunique(dropna=True)
+        unique = df[col].unique()
         
         if pd.api.types.is_numeric_dtype(df[col]):
             col_type = "Numerical"
@@ -96,6 +97,7 @@ def describe_dataset() -> str:
         
         desc.append(f"- `{col}`")
         desc.append(f"Type: {col_type}")
+        desc.append(f"Number of unique values: {n_unique}")
         desc.append(f"Unique values: {n_unique}")
         if col_type == "Numerical":
             desc.append(f"Mean: {df[col].mean():.3f}, Std: {df[col].std():.3f}, Min: {df[col].min()}, Max: {df[col].max()}")
