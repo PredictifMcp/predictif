@@ -1,16 +1,7 @@
-"""
-Predictif MCP Server - ML Model Training and Prediction Tools
-"""
-
 from mcp.server.fastmcp import FastMCP
-from predictif.tools import register_tools
+import pandas as pd
 
 mcp = FastMCP("Predictif MCP Server", port=3000, stateless_http=True, debug=True)
-
-register_tools(mcp)
-
-
-import pandas as pd
 
 
 @mcp.tool(
