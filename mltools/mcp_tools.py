@@ -17,27 +17,173 @@ def register_ml_tools(mcp: FastMCP):
 
     @mcp.tool(
         title="Train ML Model",
-        description="Train a machine learning classifier locally from a CSV file",
+        description="MAIN ENTRY POINT: Train a machine learning model. If no CSV path provided, guides you through the complete workflow: find libraries → extract documents → save as dataset → train model. Always use save_document_text_to_file workflow for dataset creation.",
     )
     def train_ml_model(
-        csv_path: str = Field(description="Path to the CSV dataset file with features and 'label' column"),
-        model_type: str = Field(default="random_forest", description="Type of model to train: random_forest, svm, logistic_regression, gradient_boosting")
+        csv_path: str = Field(default="", description="Path to CSV file. If empty, will guide through library→document→dataset extraction workflow"),
+        model_type: str = Field(default="random_forest", description="Type of model to train: random_forest, svm, logistic_regression, gradient_boosting"),
+        library_id: str = Field(default="", description="(Workflow mode) Library ID containing the document - get from list_user_libraries()"),
+        document_id: str = Field(default="", description="(Workflow mode) Document ID to extract - get from list_library_documents()"),
+        dataset_name: str = Field(default="", description="(Workflow mode) Custom name for dataset file (optional)")
     ) -> str:
-        """Train ML model locally and return user UUID for inference"""
+        """MAIN ENTRY POINT: Complete ML training workflow with automatic dataset creation from libraries"""
 
+        # WORKFLOW MODE: If csv_path is not provided, guide through dataset creation
+        if not csv_path:
+            # Check if library_id and document_id are provided for workflow mode
+            if not library_id or not document_id:
+                return """🚀 TRAIN ML MODEL - MAIN ENTRY POINT
+
+📋 COMPLETE WORKFLOW OPTIONS:
+
+🎯 OPTION 1 - Direct Training (if you have a dataset ready):
+   → train_ml_model(csv_path="datasets/your_file.csv", model_type="random_forest")
+
+🎯 OPTION 2 - Full Workflow (extract dataset from libraries then train):
+
+   STEP 1: Find your data source
+   → list_user_libraries()
+   This shows: [Library Name] -> ID: library_id
+
+   STEP 2: Browse documents in the library
+   → list_library_documents(library_id="YOUR_LIBRARY_ID_HERE")
+   This shows: [Document Name] -> ID: document_id
+
+   STEP 3: Train with automatic dataset extraction
+   → train_ml_model(
+       library_id="YOUR_LIBRARY_ID",
+       document_id="YOUR_DOCUMENT_ID",
+       model_type="random_forest"
+     )
+
+🔄 WORKFLOW EXPLANATION:
+   • This function will automatically use save_document_text_to_file()
+   • Extract document text and save to datasets/ directory
+   • Validate CSV format and check for 'label' column
+   • Start training immediately if dataset is ML-ready
+   • Return the trained model UUID for predictions
+
+🤖 Available model types: random_forest, svm, logistic_regression, gradient_boosting
+
+💡 START HERE: Run list_user_libraries() to begin!"""
+
+            # WORKFLOW MODE: Extract dataset then train
+            try:
+                # Import required functions from predictif.tools
+                import sys
+                import os
+                sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'predictif'))
+                from predictif.tools import save_document_text_to_file
+
+                workflow_results = []
+                workflow_results.append("🤖 AUTOMATIC WORKFLOW INITIATED")
+                workflow_results.append("=" * 50)
+                workflow_results.append(f"📚 Library ID: {library_id}")
+                workflow_results.append(f"📄 Document ID: {document_id}")
+                workflow_results.append(f"🎯 Model Type: {model_type}")
+                workflow_results.append("")
+                workflow_results.append("⏳ STEP 1: Extracting document to dataset...")
+
+                # Call save_document_text_to_file to extract dataset
+                save_result = save_document_text_to_file(
+                    library_id=library_id,
+                    document_id=document_id,
+                    custom_filename=dataset_name,
+                    validate_csv=True
+                )
+
+                # Check if extraction failed
+                if "❌" in save_result:
+                    workflow_results.append("❌ Dataset extraction failed:")
+                    workflow_results.append(save_result)
+                    return "\n".join(workflow_results)
+
+                # Parse dataset path from save result
+                import re
+                path_match = re.search(r"Dataset saved at: ([^\n]+)", save_result)
+                if not path_match:
+                    workflow_results.append("❌ Could not determine dataset path from extraction result")
+                    workflow_results.append(save_result)
+                    return "\n".join(workflow_results)
+
+                extracted_dataset_path = path_match.group(1)
+
+                workflow_results.append(f"✅ Dataset extracted successfully: {extracted_dataset_path}")
+                workflow_results.append("")
+                workflow_results.append("⏳ STEP 2: Starting model training...")
+
+                # Proceed with training using the extracted dataset
+                csv_path = extracted_dataset_path
+
+            except Exception as e:
+                return f"❌ Workflow mode failed: {str(e)}\n\n💡 Try direct mode with csv_path parameter or check your library_id and document_id"
+
+        # TRAINING PHASE (both direct and workflow mode reach here)
         # Validate model type
         try:
             model_type_enum = ModelType(model_type)
         except ValueError:
-            return f"Invalid model type '{model_type}'. Valid options: {', '.join([t.value for t in ModelType])}"
+            return f"❌ Invalid model type '{model_type}'. Valid options: {', '.join([t.value for t in ModelType])}"
+
+        # Validate CSV file exists
+        from pathlib import Path
+        if not Path(csv_path).exists():
+            return f"""❌ CSV file not found: {csv_path}
+
+🔍 DATASET TROUBLESHOOTING:
+
+1️⃣ If you used workflow mode, the extraction may have failed
+2️⃣ For direct mode, ensure the CSV file exists at the specified path
+3️⃣ Use save_document_text_to_file() to create datasets from libraries
+4️⃣ Expected location: datasets/your_file.csv
+
+💡 Restart workflow with list_user_libraries() → list_library_documents() → save_document_text_to_file()"""
+
+        # Pre-training validation
+        try:
+            import pandas as pd
+            df = pd.read_csv(csv_path)
+            if 'label' not in df.columns:
+                return f"""❌ Dataset validation failed: No 'label' column found
+
+📊 Current columns in {Path(csv_path).name}: {list(df.columns)}
+
+🔧 SOLUTIONS:
+1️⃣ Add a 'label' column to your CSV file for supervised learning
+2️⃣ Use a different dataset that has a 'label' column
+3️⃣ Extract a different document from your libraries
+
+💡 The 'label' column should contain the target values you want to predict."""
+        except Exception as e:
+            return f"❌ Could not validate CSV file: {str(e)}\n💡 Ensure {csv_path} is a valid CSV file."
 
         # Train model from CSV path
-        success, user_uuid, message = ml_manager.train_model_from_csv_path(
+        success, user_uuid, training_message = ml_manager.train_model_from_csv_path(
             csv_path=csv_path,
             model_type=model_type_enum
         )
 
-        return message
+        # Enhanced result formatting
+        if 'workflow_results' in locals():
+            # Workflow mode - combine extraction and training results
+            workflow_results.append("")
+            workflow_results.append("📊 TRAINING RESULTS:")
+            workflow_results.append(training_message)
+
+            if success:
+                workflow_results.append("")
+                workflow_results.append("🎉 COMPLETE WORKFLOW SUCCESS!")
+                workflow_results.append(f"📁 Dataset: {extracted_dataset_path}")
+                workflow_results.append(f"🆔 Model UUID: {user_uuid}")
+                workflow_results.append("")
+                workflow_results.append("🔮 NEXT STEPS:")
+                workflow_results.append(f"   • Make predictions: predict_with_model(user_uuid='{user_uuid}', csv_path='test_data.csv')")
+                workflow_results.append(f"   • Get model info: get_model_info(user_uuid='{user_uuid}')")
+
+            return "\n".join(workflow_results)
+        else:
+            # Direct mode - return training result
+            return training_message
 
     @mcp.tool(
         title="Make Predictions",

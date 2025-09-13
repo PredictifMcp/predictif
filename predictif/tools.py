@@ -24,13 +24,6 @@ def register_tools(mcp: FastMCP):
     mistral_client = Mistral(api_key=mistral_api_key)
 
     @mcp.tool(
-        title="Echo",
-        description="Echo back the input message",
-    )
-    def echo(message: str = Field(description="Message to echo back")) -> str:
-        return f"Echo: {message}"
-
-    @mcp.tool(
         title="List User Libraries",
         description="Lists all libraries available to the current user. Returns structured data mapping library names to IDs and document counts. This should be called before listing documents in a specific library to get the library ID from the library name.",
     )
@@ -329,18 +322,20 @@ def register_tools(mcp: FastMCP):
                     df = pd.read_csv(io.StringIO(text_content))
 
                     # Check for required 'label' column
-                    if 'label' not in df.columns:
+                    if "label" not in df.columns:
                         csv_validation_info = f"\n⚠️ CSV Warning: No 'label' column found. Columns: {list(df.columns)}\n💡 For ML training, add a 'label' column or use a different dataset."
                     else:
-                        unique_labels = df['label'].nunique()
+                        unique_labels = df["label"].nunique()
                         csv_validation_info = f"\n✅ CSV Valid: Found 'label' column with {unique_labels} unique classes\n📊 Dataset shape: {df.shape[0]} rows, {df.shape[1]} columns"
 
                         # Show label distribution
-                        label_dist = df['label'].value_counts().to_dict()
+                        label_dist = df["label"].value_counts().to_dict()
                         csv_validation_info += f"\n📈 Label distribution: {label_dist}"
 
                 except Exception as e:
-                    csv_validation_info = f"\n⚠️ CSV Warning: Could not parse as CSV: {str(e)}"
+                    csv_validation_info = (
+                        f"\n⚠️ CSV Warning: Could not parse as CSV: {str(e)}"
+                    )
 
             # Save text content to file
             with open(file_path, "w", encoding="utf-8") as f:
@@ -354,107 +349,6 @@ def register_tools(mcp: FastMCP):
         except Exception as e:
             return f"Error saving document {document_id} to file: {str(e)}"
 
-    @mcp.tool(
-        title="List Dataset Files",
-        description="Lists all files in the datasets/ directory with detailed information including file size, type, modification date, and ML training readiness status.",
-    )
-    def list_dataset_files() -> str:
-        """
-        Lists all files stored in the datasets/ directory with comprehensive details.
-
-        This function works independently - no prerequisites needed. Use it to:
-        - Check what datasets are available before processing
-        - Verify files were saved correctly after using save_document_text_to_file
-        - Get file information for further analysis
-        - Monitor dataset storage usage
-
-        Returns:
-            str: Formatted list of all files with details (name, size, type, modified date)
-                 or message if directory is empty/doesn't exist
-        """
-        try:
-            datasets_dir = Path("datasets")
-
-            # Check if datasets directory exists
-            if not datasets_dir.exists():
-                return "📁 No datasets directory found. Use save_document_text_to_file to create it and add files."
-
-            # Get all files in datasets directory
-            files = list(datasets_dir.glob("*"))
-            files = [f for f in files if f.is_file()]  # Only files, not directories
-
-            if not files:
-                return "📂 Datasets directory exists but is empty.\n💡 Use save_document_text_to_file to add files."
-
-            # Sort files by modification time (newest first)
-            files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
-
-            # Build detailed file listing
-            result = []
-            result.append("📊 Dataset Files")
-            result.append("=" * 50)
-            result.append(f"📁 Location: datasets/")
-            result.append(f"📈 Total files: {len(files)}")
-            result.append("")
-
-            for file_path in files:
-                stat = file_path.stat()
-                file_size = stat.st_size
-
-                # Format file size
-                if file_size < 1024:
-                    size_str = f"{file_size} B"
-                elif file_size < 1024 * 1024:
-                    size_str = f"{file_size / 1024:.1f} KB"
-                else:
-                    size_str = f"{file_size / (1024 * 1024):.1f} MB"
-
-                # Get file extension for type
-                file_type = file_path.suffix.lower() or "no extension"
-
-                # Format modification time
-                from datetime import datetime
-                mod_time = datetime.fromtimestamp(stat.st_mtime)
-                mod_time_str = mod_time.strftime("%Y-%m-%d %H:%M:%S")
-
-                # Check if file is ML-ready (has label column for CSV files)
-                ml_ready = "?"
-                if file_type in [".csv", ".txt"]:
-                    try:
-                        with open(file_path, 'r', encoding='utf-8') as f:
-                            sample_content = f.read(1024)  # Read first 1KB
-                        df = pd.read_csv(io.StringIO(sample_content))
-                        ml_ready = "✅" if 'label' in df.columns else "⚠️ (no label)"
-                    except:
-                        ml_ready = "❓ (parse error)"
-
-                result.append(f"📄 {file_path.name}")
-                result.append(f"   └─ Size: {size_str}")
-                result.append(f"   └─ Type: {file_type}")
-                result.append(f"   └─ Modified: {mod_time_str}")
-                result.append(f"   └─ Path: datasets/{file_path.name}")
-                result.append(f"   └─ ML Ready: {ml_ready}")
-                result.append("")
-
-            # Add total size
-            total_size = sum(f.stat().st_size for f in files)
-            if total_size < 1024 * 1024:
-                total_size_str = f"{total_size / 1024:.1f} KB"
-            else:
-                total_size_str = f"{total_size / (1024 * 1024):.1f} MB"
-
-            result.append(f"💾 Total storage used: {total_size_str}")
-            result.append("")
-            result.append("💡 Usage Tips:")
-            result.append("   • Files marked ✅ are ready for ML training")
-            result.append("   • Files marked ⚠️ need a 'label' column for supervised learning")
-            result.append("   • Use analyze_document_as_csv to inspect file structure")
-            result.append("   • Use train_ml_model with the full path: datasets/filename.csv")
-
-            return "\n".join(result)
-
-        except Exception as e:
-            return f"Error listing dataset files: {str(e)}"
 
     @mcp.tool(
         title="Smart Dataset Workflow",
@@ -469,15 +363,15 @@ def register_tools(mcp: FastMCP):
         ),
         dataset_name: str = Field(
             default="",
-            description="Custom name for the dataset file (optional, will use document name if not provided)"
+            description="Custom name for the dataset file (optional, will use document name if not provided)",
         ),
         auto_train: bool = Field(
             default=False,
-            description="Whether to automatically start training after dataset is ready (default: False)"
+            description="Whether to automatically start training after dataset is ready (default: False)",
         ),
         model_type: str = Field(
             default="random_forest",
-            description="Type of model for auto-training: random_forest, svm, logistic_regression, gradient_boosting"
+            description="Type of model for auto-training: random_forest, svm, logistic_regression, gradient_boosting",
         ),
     ) -> str:
         """
@@ -497,7 +391,7 @@ def register_tools(mcp: FastMCP):
                 library_id=library_id,
                 document_id=document_id,
                 custom_filename=dataset_name,
-                validate_csv=True
+                validate_csv=True,
             )
 
             # Extract dataset path from save result if successful
@@ -506,6 +400,7 @@ def register_tools(mcp: FastMCP):
 
             # Parse the dataset path from the success message
             import re
+
             path_match = re.search(r"Dataset saved at: ([^\n]+)", save_result)
             if not path_match:
                 return f"❌ Could not determine dataset path from save result\n\n{save_result}"
@@ -530,11 +425,17 @@ def register_tools(mcp: FastMCP):
             workflow_results.append(f"📁 Dataset Location: {dataset_path}")
             workflow_results.append("")
             workflow_results.append("✅ Dataset Processing Results:")
-            workflow_results.append(save_result.split("✅ Document saved successfully!", 1)[1] if "✅ Document saved successfully!" in save_result else save_result)
+            workflow_results.append(
+                save_result.split("✅ Document saved successfully!", 1)[1]
+                if "✅ Document saved successfully!" in save_result
+                else save_result
+            )
             workflow_results.append("")
 
             # Step 4: Check if ready for training
-            training_ready = "✅" in save_result and "Found 'label' column" in save_result
+            training_ready = (
+                "✅" in save_result and "Found 'label' column" in save_result
+            )
 
             if training_ready:
                 workflow_results.append("🎯 ML Training Status: READY")
@@ -550,9 +451,10 @@ def register_tools(mcp: FastMCP):
 
                     try:
                         model_type_enum = ModelType(model_type)
-                        success, user_uuid, training_message = ml_manager.train_model_from_csv_path(
-                            csv_path=dataset_path,
-                            model_type=model_type_enum
+                        success, user_uuid, training_message = (
+                            ml_manager.train_model_from_csv_path(
+                                csv_path=dataset_path, model_type=model_type_enum
+                            )
                         )
 
                         workflow_results.append("")
@@ -561,30 +463,48 @@ def register_tools(mcp: FastMCP):
 
                         if success:
                             workflow_results.append("")
-                            workflow_results.append("🎉 WORKFLOW COMPLETE: Dataset extracted, saved, and model trained!")
+                            workflow_results.append(
+                                "🎉 WORKFLOW COMPLETE: Dataset extracted, saved, and model trained!"
+                            )
                             workflow_results.append(f"🔑 Your model UUID: {user_uuid}")
                         else:
                             workflow_results.append("")
-                            workflow_results.append("⚠️ Training failed, but dataset is ready for manual training.")
+                            workflow_results.append(
+                                "⚠️ Training failed, but dataset is ready for manual training."
+                            )
 
                     except ValueError:
-                        workflow_results.append(f"❌ Invalid model type '{model_type}'. Valid options: random_forest, svm, logistic_regression, gradient_boosting")
-                        workflow_results.append("💡 Dataset is ready - use train_ml_model manually with correct model type")
+                        workflow_results.append(
+                            f"❌ Invalid model type '{model_type}'. Valid options: random_forest, svm, logistic_regression, gradient_boosting"
+                        )
+                        workflow_results.append(
+                            "💡 Dataset is ready - use train_ml_model manually with correct model type"
+                        )
                     except Exception as e:
                         workflow_results.append(f"❌ Auto-training failed: {str(e)}")
-                        workflow_results.append("💡 Dataset is ready - use train_ml_model manually")
+                        workflow_results.append(
+                            "💡 Dataset is ready - use train_ml_model manually"
+                        )
                 else:
                     workflow_results.append("")
                     workflow_results.append("📋 Next Steps for Manual Training:")
-                    workflow_results.append(f"   • Use train_ml_model with path: {dataset_path}")
-                    workflow_results.append(f"   • Choose model type: random_forest, svm, logistic_regression, gradient_boosting")
+                    workflow_results.append(
+                        f"   • Use train_ml_model with path: {dataset_path}"
+                    )
+                    workflow_results.append(
+                        f"   • Choose model type: random_forest, svm, logistic_regression, gradient_boosting"
+                    )
 
             else:
                 workflow_results.append("⚠️ ML Training Status: REQUIRES ATTENTION")
-                workflow_results.append("💡 The dataset needs a 'label' column for supervised learning")
+                workflow_results.append(
+                    "💡 The dataset needs a 'label' column for supervised learning"
+                )
                 workflow_results.append("📋 Next Steps:")
                 workflow_results.append("   • Add a 'label' column to your CSV")
-                workflow_results.append("   • Or use this dataset for unsupervised learning")
+                workflow_results.append(
+                    "   • Or use this dataset for unsupervised learning"
+                )
 
             return "\n".join(workflow_results)
 
@@ -601,7 +521,7 @@ def register_tools(mcp: FastMCP):
         ),
         model_type: str = Field(
             default="random_forest",
-            description="Type of model to train: random_forest, svm, logistic_regression, gradient_boosting"
+            description="Type of model to train: random_forest, svm, logistic_regression, gradient_boosting",
         ),
     ) -> str:
         """
@@ -637,14 +557,18 @@ def register_tools(mcp: FastMCP):
             # Pre-training validation
             try:
                 df = pd.read_csv(dataset_path)
-                if 'label' not in df.columns:
+                if "label" not in df.columns:
                     return f"❌ Dataset validation failed: No 'label' column found\n📊 Columns in {dataset_filename}: {list(df.columns)}\n💡 Add a 'label' column for supervised learning."
 
                 validation_info = []
                 validation_info.append(f"✅ Pre-training validation passed!")
                 validation_info.append(f"📊 Dataset: {dataset_filename}")
-                validation_info.append(f"📈 Shape: {df.shape[0]} rows, {df.shape[1]} columns")
-                validation_info.append(f"🎯 Classes: {df['label'].nunique()} ({df['label'].unique().tolist()})")
+                validation_info.append(
+                    f"📈 Shape: {df.shape[0]} rows, {df.shape[1]} columns"
+                )
+                validation_info.append(
+                    f"🎯 Classes: {df['label'].nunique()} ({df['label'].unique().tolist()})"
+                )
                 validation_info.append(f"🤖 Model: {model_type}")
                 validation_info.append("")
                 validation_info.append("🚀 Starting training...")
@@ -656,8 +580,7 @@ def register_tools(mcp: FastMCP):
 
             # Start training
             success, user_uuid, training_message = ml_manager.train_model_from_csv_path(
-                csv_path=dataset_path,
-                model_type=model_type_enum
+                csv_path=dataset_path, model_type=model_type_enum
             )
 
             # Combine results
@@ -670,8 +593,12 @@ def register_tools(mcp: FastMCP):
                 final_results.append("")
                 final_results.append("🎉 QUICK TRAINING COMPLETE!")
                 final_results.append("📋 What you can do next:")
-                final_results.append(f"   • Make predictions: predict_with_model(user_uuid='{user_uuid}', csv_path='your_test_data.csv')")
-                final_results.append(f"   • Get model details: get_model_info(user_uuid='{user_uuid}')")
+                final_results.append(
+                    f"   • Make predictions: predict_with_model(user_uuid='{user_uuid}', csv_path='your_test_data.csv')"
+                )
+                final_results.append(
+                    f"   • Get model details: get_model_info(user_uuid='{user_uuid}')"
+                )
                 final_results.append(f"   • List all models: list_trained_models()")
 
             return "\n".join(final_results)
