@@ -1,15 +1,15 @@
 """
-MCP tools for ML training and deployment on HF Spaces
+MCP tools for ML training and inference
 """
 
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
-from .trainer import MLManager
-from .models import MLConfig, ModelType
+from .local_trainer import LocalMLManager
+from .models import ModelType
 
 # Global manager instance
-ml_manager = MLManager()
+ml_manager = LocalMLManager()
 
 
 def register_ml_tools(mcp: FastMCP):
@@ -17,14 +17,13 @@ def register_ml_tools(mcp: FastMCP):
 
     @mcp.tool(
         title="Train ML Model",
-        description="Train a machine learning classifier on HF Spaces and auto-deploy inference Space",
+        description="Train a machine learning classifier locally from a CSV file",
     )
     def train_ml_model(
-        hf_token: str = Field(description="Hugging Face API token"),
-        file_url: str = Field(description="URL of the CSV dataset file attachment from chat with features and 'label' column"),
+        csv_path: str = Field(description="Path to the CSV dataset file with features and 'label' column"),
         model_type: str = Field(default="random_forest", description="Type of model to train: random_forest, svm, logistic_regression, gradient_boosting")
     ) -> str:
-        """Train ML model and deploy inference Space"""
+        """Train ML model locally and return user UUID for inference"""
 
         # Validate model type
         try:
@@ -32,151 +31,85 @@ def register_ml_tools(mcp: FastMCP):
         except ValueError:
             return f"Invalid model type '{model_type}'. Valid options: {', '.join([t.value for t in ModelType])}"
 
-        # Generate model name from job ID
-        import uuid
-        job_id = str(uuid.uuid4())
-        model_name = f"predictif-{model_type.replace('_', '')}-{job_id[:8]}"
-
-        # Create configuration
-        config = MLConfig(
-            token=hf_token,
-            csv_content=file_url,  # Will be downloaded in training script
-            model_name=model_name,
+        # Train model from CSV path
+        success, user_uuid, message = ml_manager.train_model_from_csv_path(
+            csv_path=csv_path,
             model_type=model_type_enum
         )
 
-        # Create and start job with pre-generated ID
-        from .models import TrainingJob
-        job = TrainingJob(
-            job_id=job_id,
-            model_name=model_name,
-            status="pending",
-            config=config
-        )
-
-        ml_manager.active_jobs[job_id] = job
-        success = ml_manager.start_training(job_id)
-
-        if success:
-            return f"""Training job started successfully!
-
-Job ID: {job_id}
-Model Name: {model_name}
-Model Type: {model_type_enum.value}
-Training Space: {job.training_space_url}
-
-The training will:
-1. Download and process your CSV file
-2. Train a {model_type_enum.value} classifier
-3. Evaluate the model performance
-4. Automatically deploy an inference Space with Gradio UI
-5. Make the model available for predictions
-
-Check the training Space for progress and logs."""
-        else:
-            return f"Failed to start training job {job_id}"
+        return message
 
     @mcp.tool(
-        title="Get Training Status",
-        description="Get the status of a training job",
-    )
-    def get_training_status(
-        job_id: str = Field(description="ID of the training job to check")
-    ) -> str:
-        """Get training job status"""
-        job = ml_manager.get_job_status(job_id)
-
-        if job is None:
-            return f"Job {job_id} not found"
-
-        status_info = f"""Job {job_id} Status: {job.status}
-
-Model Name: {job.model_name}
-Training Space: {job.training_space_url}"""
-
-        if job.inference_space_url:
-            status_info += f"\nInference Space: {job.inference_space_url}"
-
-        if job.accuracy:
-            status_info += f"\nAccuracy: {job.accuracy:.4f}"
-
-        if job.feature_names:
-            status_info += f"\nFeatures: {', '.join(job.feature_names)}"
-
-        return status_info
-
-    @mcp.tool(
-        title="Predict with Model",
-        description="Make predictions using a trained model by providing a CSV file with feature values",
+        title="Make Predictions",
+        description="Make predictions using a trained model with CSV data",
     )
     def predict_with_model(
-        hf_token: str = Field(description="Hugging Face API token"),
-        model_name: str = Field(description="Name of the trained model (e.g., predictif-model-abc123de)"),
-        file_url: str = Field(description="URL of the CSV file attachment from chat with feature values (same columns as training, no 'label' column)")
+        user_uuid: str = Field(description="User UUID returned from training"),
+        csv_path: str = Field(description="Path to CSV file with feature values (same columns as training, no 'label' column)")
     ) -> str:
-        """Make batch predictions with trained model"""
+        """Make predictions with trained model"""
 
         try:
-            # Import requests for API calls
-            import requests
-            from huggingface_hub import HfApi
+            result = ml_manager.predict_from_csv_path(user_uuid, csv_path)
 
-            api = HfApi(token=hf_token)
-            user_info = api.whoami()
-            username = user_info["name"]
+            if "error" in result:
+                return f"❌ Prediction failed: {result['error']}"
 
-            # Construct inference Space URL (matching deployment format)
-            inference_space_name = f"{model_name}-inference"
-            inference_space_url = f"https://{username}-{inference_space_name}.hf.space"
+            predictions = result["predictions"]
+            model_info = result["model_info"]
 
-            # Call inference API with file URL
-            response = requests.post(
-                f"{inference_space_url}/api/predict_batch",
-                json={"file_url": file_url}
-            )
+            if not predictions:
+                return "No predictions generated"
 
-            if response.status_code == 200:
-                result = response.json()
-                predictions = result.get("predictions", [])
+            # Format results
+            result_lines = [f"✅ Predictions completed successfully!"]
+            result_lines.append(f"Model: {user_uuid}")
+            result_lines.append(f"Type: {model_info['model_type']}")
+            result_lines.append(f"Accuracy: {model_info['accuracy']:.4f}")
+            result_lines.append(f"Total predictions: {len(predictions)}")
+            result_lines.append("")
+            result_lines.append("Sample predictions:")
 
-                if not predictions:
-                    return "No predictions returned"
+            # Show first 5 predictions
+            for i, pred in enumerate(predictions[:5]):
+                predicted_class = pred["prediction"]
+                confidence = pred["max_probability"]
+                result_lines.append(f"Row {i+1}: Class {predicted_class} (confidence: {confidence:.4f})")
 
-                # Format results
-                result_lines = ["Prediction Results:"]
-                for i, pred in enumerate(predictions):
-                    predicted_class = pred.get("prediction", "Unknown")
-                    confidence = max(pred.get("probabilities", {}).values()) if pred.get("probabilities") else 0.0
-                    result_lines.append(f"Row {i+1}: Class {predicted_class} (confidence: {confidence:.4f})")
+            if len(predictions) > 5:
+                result_lines.append(f"... and {len(predictions) - 5} more predictions")
 
-                result_lines.append(f"\nTotal predictions: {len(predictions)}")
-                result_lines.append(f"Model: {model_name}")
-                result_lines.append(f"Inference Space: {inference_space_url}")
+            # Add class distribution
+            class_counts = {}
+            for pred in predictions:
+                cls = pred["prediction"]
+                class_counts[cls] = class_counts.get(cls, 0) + 1
 
-                return "\n".join(result_lines)
+            result_lines.append("")
+            result_lines.append("Class distribution:")
+            for cls, count in sorted(class_counts.items()):
+                result_lines.append(f"  Class {cls}: {count} predictions")
 
-            else:
-                return f"Error calling inference API: {response.status_code} - {response.text}"
+            return "\n".join(result_lines)
 
         except Exception as e:
-            return f"Error making predictions: {e}"
+            return f"❌ Prediction error: {e}"
 
     @mcp.tool(
         title="List Trained Models",
-        description="List all trained and deployed models",
+        description="List all trained and available models",
     )
     def list_trained_models() -> str:
         """List all models in the registry"""
-        models = ml_manager.list_models()
+        models = ml_manager.list_all_models()
 
         if not models:
             return "No trained models found."
 
         model_list = ["Available trained models:"]
-        for model_name, job in models.items():
-            status = "✅ Available" if job.status == "completed" else f"❌ {job.status}"
+        for model_uuid, job in models.items():
             accuracy = f" (Accuracy: {job.accuracy:.4f})" if job.accuracy else ""
-            model_list.append(f"• {model_name} - {job.model_type}{accuracy} - {status}")
+            model_list.append(f"• {model_uuid}: {job.model_type}{accuracy}")
 
         return "\n".join(model_list)
 
@@ -185,52 +118,49 @@ Training Space: {job.training_space_url}"""
         description="Get detailed information about a specific trained model",
     )
     def get_model_info(
-        model_name: str = Field(description="Name of the model to get info for")
+        user_uuid: str = Field(description="User UUID of the model to get info for")
     ) -> str:
         """Get detailed model information"""
-        model = ml_manager.get_model(model_name)
+        model_info = ml_manager.get_model_info(user_uuid)
 
-        if not model:
-            return f"Model '{model_name}' not found. Use list_trained_models to see available models."
+        if not model_info:
+            return f"Model '{user_uuid}' not found. Use list_trained_models to see available models."
 
-        info = f"""Model Information: {model_name}
+        model = model_info["model"]
+        metadata = model_info["metadata"]
+        files = model_info["files"]
+
+        info = f"""Model Information: {user_uuid}
 
 Type: {model.model_type}
 Status: {model.status}
-Job ID: {model.job_id}
-Accuracy: {model.accuracy:.4f if model.accuracy else 'N/A'}
+Accuracy: {metadata['accuracy']:.4f}
+Trained: {metadata['trained_at'][:19].replace('T', ' ')}
 
-URLs:
-• Training Space: {model.training_space_url}
-• Inference Space: {model.inference_space_url or 'Not available'}
+Dataset Info:
+• Shape: {metadata['dataset_shape']}
+• Features: {', '.join(metadata['feature_names'])}
+• Classes: {metadata['n_classes']} ({metadata['classes']})
 
-Features: {', '.join(model.feature_names) if model.feature_names else 'N/A'}
-Model Parameters: {model.config.model_params}"""
+Model Parameters: {metadata['model_params']}
+
+Files:
+• Directory: {files['model_dir']}
+• Size: {files['model_size_mb']} MB"""
 
         return info
 
     @mcp.tool(
-        title="List Models by Type",
-        description="List models filtered by type (random_forest, svm, logistic_regression, gradient_boosting)",
+        title="Delete Model",
+        description="Delete a trained model and its files",
     )
-    def list_models_by_type(
-        model_type: str = Field(description="Type of models to list: random_forest, svm, logistic_regression, gradient_boosting")
+    def delete_model(
+        user_uuid: str = Field(description="User UUID of the model to delete")
     ) -> str:
-        """List models by type"""
-        try:
-            model_type_enum = ModelType(model_type)
-        except ValueError:
-            return f"Invalid model type '{model_type}'. Valid options: {', '.join([t.value for t in ModelType])}"
+        """Delete a trained model"""
+        success = ml_manager.delete_model(user_uuid)
 
-        models = ml_manager.get_models_by_type(model_type_enum)
-
-        if not models:
-            return f"No {model_type} models found."
-
-        model_list = [f"Available {model_type} models:"]
-        for model_name, job in models.items():
-            status = "✅ Available" if job.status == "completed" else f"❌ {job.status}"
-            accuracy = f" (Accuracy: {job.accuracy:.4f})" if job.accuracy else ""
-            model_list.append(f"• {model_name}{accuracy} - {status}")
-
-        return "\n".join(model_list)
+        if success:
+            return f"✅ Model {user_uuid} deleted successfully"
+        else:
+            return f"❌ Failed to delete model {user_uuid} (model not found)"
