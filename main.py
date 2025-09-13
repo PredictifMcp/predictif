@@ -46,7 +46,10 @@ def greet_user(
 
 import pandas as pd
 
-@mcp.prompt("")
+@mcp.tool(
+    title="Describe dataset tool",
+    description="Provide a text-based EDA summary for a dataset",
+)
 def describe_dataset() -> str:
     """
     Generate a text-based EDA summary for a dataset.
