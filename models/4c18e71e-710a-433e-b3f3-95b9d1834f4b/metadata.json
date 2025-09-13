@@ -1,0 +1,32 @@
+{
+  "job_id": "ae87124d-4c24-4e1f-a865-1332e5629c19",
+  "user_uuid": "4c18e71e-710a-433e-b3f3-95b9d1834f4b",
+  "model_name": "4c18e71e-710a-433e-b3f3-95b9d1834f4b",
+  "model_type": "logistic_regression",
+  "accuracy": 1.0,
+  "feature_names": [
+    "sepal_length",
+    "sepal_width",
+    "petal_length",
+    "petal_width"
+  ],
+  "n_classes": 3,
+  "classes": [
+    0,
+    1,
+    2
+  ],
+  "model_params": {},
+  "trained_at": "2025-09-13T22:03:15.408306",
+  "test_size": 0.2,
+  "random_state": 42,
+  "dataset_shape": [
+    30,
+    5
+  ],
+  "class_distribution": {
+    "0": 10,
+    "1": 10,
+    "2": 10
+  }
+}

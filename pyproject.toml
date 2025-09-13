@@ -13,4 +13,6 @@ dependencies = [
     "requests",
     "huggingface-hub",
     "tabulate",
+    "joblib>=1.5.2",
+    "scikit-learn>=1.7.2",
 ]
