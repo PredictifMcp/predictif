@@ -1,113 +1,20 @@
-"""
-MCP Server Template
-"""
-
+import os
 from mcp.server.fastmcp import FastMCP
-from pydantic import Field
+from predictif.tools import register_tools
+from autotrain.mcp_tools import register_ml_tools
 
-import mcp.types as types
+port = int(os.getenv("PORT", 3000))
 
-mcp = FastMCP("Echo Server", port=3000, stateless_http=True, debug=True)
-
-
-@mcp.tool(
-    title="Echo Tool",
-    description="Echo the input text",
+mcp = FastMCP(
+    name="Predictif ML Server",
+    host="0.0.0.0",
+    port=port,
+    stateless_http=True,
+    debug=False,
 )
-def echo(text: str = Field(description="The text to echo")) -> str:
-    return text
 
-
-@mcp.resource(
-    uri="greeting://{name}",
-    description="Get a personalized greeting",
-    name="Greeting Resource",
-)
-def get_greeting(
-    name: str,
-) -> str:
-    return f"Hello, {name}!"
-
-
-@mcp.prompt("")
-def greet_user(
-    name: str = Field(description="The name of the person to greet"),
-    style: str = Field(description="The style of the greeting", default="friendly"),
-) -> str:
-    """Generate a greeting prompt"""
-    styles = {
-        "friendly": "Please write a warm, friendly greeting",
-        "formal": "Please write a formal, professional greeting",
-        "casual": "Please write a casual, relaxed greeting",
-    }
-
-    return f"{styles.get(style, styles['friendly'])} for someone named {name}."
-
-
-import pandas as pd
-
-@mcp.tool(
-    title="Describe dataset tool",
-    description="Provide a text-based EDA summary for a dataset",
-)
-def describe_dataset() -> str:
-    """
-    Generate a text-based EDA summary for a dataset.
-    
-    Returns:
-    - str: A formatted description of the dataset.
-    """
-    csv_path = 'data/iris/train.csv'
-    label_column = "Species"
-    df = pd.read_csv(csv_path)
-    
-    # Basic dataset info
-    n_rows, n_cols = df.shape
-    desc = []
-    desc.append(f"Dataset Summary")
-    desc.append(f"- Path: {csv_path}")
-    desc.append(f"- Rows: {n_rows}")
-    desc.append(f"- Columns: {n_cols}")
-    desc.append("")
-    
-    # Label column info
-    if label_column and label_column in df.columns:
-        desc.append(f"Label Column: `{label_column}`")
-        desc.append(f"- Type: {df[label_column].dtype}")
-        desc.append(f"- Unique values: {df[label_column].nunique()}")
-        desc.append("")
-    elif label_column:
-        desc.append(f"Label column `{label_column}` not found in dataset.")
-        desc.append("")
-    
-    # Features summary
-    desc.append("Features Overview:")
-    for col in df.columns:
-        if col == label_column:
-            continue
-        
-        dtype = df[col].dtype
-        n_unique = df[col].nunique(dropna=True)
-        unique = df[col].unique()
-        
-        if pd.api.types.is_numeric_dtype(df[col]):
-            col_type = "Numerical"
-        else:
-            col_type = "Categorical"
-        
-        desc.append(f"- `{col}`")
-        desc.append(f"Type: {col_type}")
-        desc.append(f"Number of unique values: {n_unique}")
-        desc.append(f"Unique values: {n_unique}")
-        if col_type == "Numerical":
-            desc.append(f"Mean: {df[col].mean():.3f}, Std: {df[col].std():.3f}, Min: {df[col].min()}, Max: {df[col].max()}")
-        else:
-            most_common = df[col].value_counts().idxmax()
-            freq = df[col].value_counts().max()
-            desc.append(f"Most frequent: '{most_common}' ({freq} occurrences)")
-        desc.append("")
-    
-    return "\n".join(desc)
+register_tools(mcp)
+register_ml_tools(mcp)
 
 
 if __name__ == "__main__":

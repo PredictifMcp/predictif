@@ -6,17 +6,12 @@ RUN pip install uv
 
 COPY pyproject.toml uv.lock ./
 
-RUN uv sync --frozen --no-dev
+RUN uv sync --frozen
 
-COPY predictif/ ./predictif/
-
-RUN groupadd -r appuser && useradd -r -g appuser appuser
-RUN chown -R appuser:appuser /app
-USER appuser
+COPY . .
 
 EXPOSE 3000
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:3000/health || exit 1
+ENV PORT=3000
 
-CMD ["uv", "run", "python", "-m", "predictif.main"]
+CMD ["uv", "run", "python", "main.py"]
