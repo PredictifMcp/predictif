@@ -349,7 +349,6 @@ def register_tools(mcp: FastMCP):
         except Exception as e:
             return f"Error saving document {document_id} to file: {str(e)}"
 
-
     @mcp.tool(
         title="Smart Dataset Workflow",
         description="Complete workflow: extract document from library, save as dataset, validate for ML training, and optionally start training. This is the main workflow function you should use.",

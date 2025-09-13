@@ -177,7 +177,7 @@ def register_ml_tools(mcp: FastMCP):
                 workflow_results.append(f"🆔 Model UUID: {user_uuid}")
                 workflow_results.append("")
                 workflow_results.append("🔮 NEXT STEPS:")
-                workflow_results.append(f"   • Make predictions: predict_with_model(user_uuid='{user_uuid}', csv_path='test_data.csv')")
+                workflow_results.append(f"   • Make predictions: predict_with_model(model_uuid='{user_uuid}', dataset_file='test_data.csv')")
                 workflow_results.append(f"   • Get model info: get_model_info(user_uuid='{user_uuid}')")
 
             return "\n".join(workflow_results)
@@ -186,43 +186,50 @@ def register_ml_tools(mcp: FastMCP):
             return training_message
 
     @mcp.tool(
-        title="Make Predictions",
-        description="Make predictions using a trained model with CSV data",
+        title="Make Prediction",
+        description="Make predictions using a trained model UUID with CSV data. Automatically resolves dataset paths from ./datasets/ directory.",
     )
     def predict_with_model(
-        user_uuid: str = Field(description="User UUID returned from training"),
-        csv_path: str = Field(description="Path to CSV file with feature values (same columns as training, no 'label' column)")
+        model_uuid: str = Field(description="Model UUID returned from training (e.g., from train_ml_model)"),
+        dataset_file: str = Field(description="Dataset filename (e.g., 'iris.csv') - automatically looks in ./datasets/ directory")
     ) -> str:
-        """Make predictions with trained model with enhanced validation and context"""
+        """Make predictions with trained model using Model UUID and automatic dataset path resolution"""
 
-        # Enhanced validation before prediction
+        # Enhanced validation with automatic path resolution
         from pathlib import Path
 
-        # 1. Validate model exists
-        model = ml_manager.get_model(user_uuid)
+        # Automatically resolve dataset path
+        if not dataset_file.startswith('./datasets/') and not dataset_file.startswith('datasets/'):
+            # Auto-resolve: if user says "iris.csv", make it "./datasets/iris.csv"
+            csv_path = f"./datasets/{dataset_file}"
+        else:
+            csv_path = dataset_file
+
+        # 1. Validate model exists using model_uuid
+        model = ml_manager.get_model(model_uuid)
         if not model:
             available_models = ml_manager.list_all_models()
             if available_models:
-                models_list = "\n".join([f"   • {uuid[:8]}: {job.model_type}" for uuid, job in available_models.items()])
-                return f"❌ Model not found: {user_uuid[:8]}...\n\n📊 Available models:\n{models_list}\n\n💡 Use the full UUID returned from training."
+                models_list = "\n".join([f"   • {uuid}: {job.model_type}" for uuid, job in available_models.items()])
+                return f"❌ Model not found: {model_uuid}\n\n📊 Available models:\n{models_list}\n\n💡 Use the exact UUID returned from training."
             else:
-                return f"❌ Model not found: {user_uuid[:8]}...\n\n📁 No trained models available.\n💡 Train a model first using train_ml_model."
+                return f"❌ Model not found: {model_uuid}\n\n📁 No trained models available.\n💡 Train a model first using train_ml_model."
 
-        # 2. Validate CSV file exists
+        # 2. Validate CSV file exists with auto-path resolution
         csv_file = Path(csv_path)
         if not csv_file.exists():
             datasets_dir = Path("datasets")
             if datasets_dir.exists():
                 available_files = [f.name for f in datasets_dir.glob("*.csv")]
                 if available_files:
-                    return f"❌ File not found: {csv_path}\n\n💡 Available CSV files:\n" + "\n".join([f"   • datasets/{f}" for f in available_files])
+                    return f"❌ Dataset not found: {csv_path}\n\n💡 Available datasets:\n" + "\n".join([f"   • {f}" for f in available_files]) + "\n\n🔍 Just provide the filename (e.g., 'iris.csv') - path resolution is automatic!"
                 else:
-                    return f"❌ File not found: {csv_path}\n\n📁 No CSV files in datasets/ directory."
+                    return f"❌ Dataset not found: {csv_path}\n\n📁 No CSV files in datasets/ directory."
             else:
-                return f"❌ File not found: {csv_path}\n\n📁 datasets/ directory doesn't exist."
+                return f"❌ Dataset not found: {csv_path}\n\n📁 datasets/ directory doesn't exist."
 
-        # 3. Get model info for feature validation
-        model_info_detailed = ml_manager.get_model_info(user_uuid)
+        # 3. Get model info for feature validation using model_uuid
+        model_info_detailed = ml_manager.get_model_info(model_uuid)
         if model_info_detailed:
             expected_features = model_info_detailed['metadata']['feature_names']
             model_accuracy = model_info_detailed['metadata']['accuracy']
@@ -268,7 +275,7 @@ def register_ml_tools(mcp: FastMCP):
             validation_summary = f"⚠️ Could not load model details for validation.\n"
 
         try:
-            result = ml_manager.predict_from_csv_path(user_uuid, csv_path)
+            result = ml_manager.predict_from_csv_path(model_uuid, csv_path)
 
             if "error" in result:
                 return f"❌ Prediction failed: {result['error']}"
@@ -279,14 +286,16 @@ def register_ml_tools(mcp: FastMCP):
             if not predictions:
                 return "No predictions generated"
 
-            # Format results
-            result_lines = [f"✅ Predictions completed successfully!"]
-            result_lines.append(f"Model: {user_uuid}")
-            result_lines.append(f"Type: {model_info['model_type']}")
-            result_lines.append(f"Accuracy: {model_info['accuracy']:.4f}")
-            result_lines.append(f"Total predictions: {len(predictions)}")
+            # Format results with clearer workflow information
+            result_lines = [f"🎯 PREDICTION RESULTS"]
+            result_lines.append("=" * 50)
+            result_lines.append(f"📊 Model UUID: {model_uuid}")
+            result_lines.append(f"🤖 Model Type: {model_info['model_type']}")
+            result_lines.append(f"🎯 Model Accuracy: {model_info['accuracy']:.4f}")
+            result_lines.append(f"📁 Dataset: {csv_path}")
+            result_lines.append(f"📈 Total predictions: {len(predictions)}")
             result_lines.append("")
-            result_lines.append("Sample predictions:")
+            result_lines.append("🔮 Sample predictions:")
 
             # Show first 5 predictions
             for i, pred in enumerate(predictions[:5]):
