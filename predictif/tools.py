@@ -223,7 +223,7 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool(
         title="Get Document Signed URLs",
-        description="Retrieves signed URLs and comprehensive information for a document in a library. Use list_user_libraries() first to get library ID, then list_library_documents() to get document ID.",
+        description="Retrieves secure, time-limited signed URLs for accessing document content. Use list_user_libraries() first to get library ID, then list_library_documents() to get document ID.",
     )
     def get_document_signed_urls(
         library_id: str = Field(
@@ -234,84 +234,69 @@ def register_tools(mcp: FastMCP):
         ),
     ) -> str:
         """
-        Retrieves comprehensive document information including signed URLs for direct access.
+        Generates secure, time-limited signed URLs for document access using Mistral's API.
+
+        This function uses the Mistral API client's `extracted_text_signed_url()` method to:
+        - Generate a signed URL for accessing the document's extracted text content
+        - Generate a signed URL for downloading the original raw document file
+        - Provide secure, temporary access without exposing permanent URLs
 
         Workflow:
         1. Call list_user_libraries() to find library ID from library name
         2. Call list_library_documents(library_id) to find document ID from document name
-        3. Call this function with both IDs
+        3. Call this function with both IDs to get secure access URLs
 
         Args:
             library_id (str): The ID of the library containing the document
-            document_id (str): The ID of the document to get signed URLs for
+            document_id (str): The ID of the document to generate signed URLs for
 
         Returns:
-            str: Comprehensive document information including metadata, signed URLs, and summary
+            str: Structured output containing signed URLs and usage instructions
         """
         try:
-            # Get document metadata
-            document_info = mistral_client.beta.libraries.documents.get(
-                library_id=library_id, document_id=document_id
+            # Use Mistral API client's extracted_text_signed_url method
+            # This method returns both text content and raw document signed URLs
+            signed_urls_response = mistral_client.beta.libraries.documents.extracted_text_signed_url(
+                library_id=library_id,
+                document_id=document_id
             )
 
-            # Get text content with signed URLs
-            text_content_response = mistral_client.beta.libraries.documents.text_content(
-                library_id=library_id, document_id=document_id
-            )
-
-            # Build comprehensive response
+            # Build structured response
             result = []
-            result.append("Document Information and Access URLs:")
+            result.append(f"Signed URLs for Document {document_id}:")
             result.append("=" * 50)
             result.append("")
 
-            # Document Metadata
-            result.append("📄 Document Metadata:")
-            result.append(f"  Name: {document_info.name}")
-            result.append(f"  ID: {document_info.id}")
-            result.append(f"  Extension: {document_info.extension}")
-            result.append(f"  Number of Pages: {document_info.number_of_pages}")
-            if hasattr(document_info, 'size') and document_info.size:
-                result.append(f"  File Size: {document_info.size} bytes")
-            if hasattr(document_info, 'created_at') and document_info.created_at:
-                result.append(f"  Created: {document_info.created_at}")
-            if hasattr(document_info, 'updated_at') and document_info.updated_at:
-                result.append(f"  Updated: {document_info.updated_at}")
-            result.append("")
+            # Display available signed URLs from the API response
+            urls_found = False
 
-            # Library Context
-            result.append("📚 Library Context:")
-            result.append(f"  Library ID: {library_id}")
-            result.append("")
+            if hasattr(signed_urls_response, 'signed_url') and signed_urls_response.signed_url:
+                result.append("🔗 Extracted Text Content URL:")
+                result.append(f"  {signed_urls_response.signed_url}")
+                result.append("  ↳ Access the processed, extracted text content from the document")
+                result.append("")
+                urls_found = True
 
-            # Document Summary
-            if hasattr(document_info, 'summary') and document_info.summary:
-                result.append("📝 Document Summary:")
-                result.append(f"  {document_info.summary}")
+            if hasattr(signed_urls_response, 'raw_signed_url') and signed_urls_response.raw_signed_url:
+                result.append("📁 Raw Document Download URL:")
+                result.append(f"  {signed_urls_response.raw_signed_url}")
+                result.append("  ↳ Download the original document file in its native format")
+                result.append("")
+                urls_found = True
+
+            if not urls_found:
+                result.append("❌ No signed URLs available for this document")
                 result.append("")
 
-            # Signed URLs
-            result.append("🔗 Access URLs:")
-            if hasattr(text_content_response, 'signed_url') and text_content_response.signed_url:
-                result.append(f"  📄 Text Content URL: {text_content_response.signed_url}")
-                result.append("    ↳ Use this URL to access the extracted text content")
-
-            if hasattr(text_content_response, 'raw_signed_url') and text_content_response.raw_signed_url:
-                result.append(f"  📋 Raw Document URL: {text_content_response.raw_signed_url}")
-                result.append("    ↳ Use this URL to download the original document file")
-
-            if not (hasattr(text_content_response, 'signed_url') or hasattr(text_content_response, 'raw_signed_url')):
-                result.append("  No signed URLs available for this document")
-            result.append("")
-
-            # Usage Instructions
-            result.append("💡 Usage Instructions:")
-            result.append("  • Text Content URL: Access processed, extracted text from the document")
-            result.append("  • Raw Document URL: Download the original document file")
-            result.append("  • URLs are time-limited and secure for temporary access")
-            result.append("  • Use these URLs in applications, browsers, or API calls")
+            # Usage information
+            result.append("📋 Important Notes:")
+            result.append("  • These URLs are time-limited and will expire")
+            result.append("  • URLs provide secure, temporary access to document content")
+            result.append("  • Text Content URL: Returns processed text (ideal for analysis)")
+            result.append("  • Raw Document URL: Returns original file (ideal for download)")
+            result.append("  • Use these URLs directly in HTTP requests, browsers, or applications")
 
             return "\n".join(result)
 
         except Exception as e:
-            return f"Error retrieving document information and URLs for document {document_id} in library {library_id}: {str(e)}"
+            return f"Error generating signed URLs for document {document_id} in library {library_id}: {str(e)}"
