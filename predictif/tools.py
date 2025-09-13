@@ -5,9 +5,13 @@ Basic tools for Predictif MCP Server
 import os
 import io
 import pandas as pd
+import json
+from pathlib import Path
 from pydantic import Field
+from typing import Dict
 from mcp.server.fastmcp import FastMCP
 from mistralai import Mistral
+from tabulate import tabulate 
 
 
 def register_tools(mcp: FastMCP):
@@ -300,3 +304,58 @@ def register_tools(mcp: FastMCP):
 
         except Exception as e:
             return f"Error generating signed URLs for document {document_id} in library {library_id}: {str(e)}"
+            
+    @mcp.tool(
+        title="Get model report",
+        description="Get model report with detailed information",
+    )
+    def get_model_report(
+        model_id: str = Field(
+            description="ID of the created model"
+        )
+    ) -> str:
+        """
+        Generates the model report and returns it in the form of text.
+
+        Args:
+            model_id (str): id of the created model
+
+        Returns:
+            str: Clean, structured report with model information
+        """
+        base_dir = Path("models") / model_id
+        results_path = base_dir / "results.json"
+        model_path = base_dir / "model.pkl"  # currently unused
+
+        if not base_dir.exists():
+            return f"No directory found for model_id='{model_id}'"
+
+        if not results_path.exists():
+            return f"results.json not found in {base_dir}"
+
+        try:
+            with open(results_path, "r") as f:
+                metadata: Dict = json.load(f)
+        except Exception as e:
+            return f"⚠️ Could not read results.json: {e}"
+
+        if not isinstance(metadata, dict) or not metadata:
+            return "⚠️ results.json is empty or not a valid JSON object."
+
+        # Convert dict into rows for a table
+        table_data = [(str(k), str(v)) for k, v in metadata.items()]
+        table = tabulate(table_data, headers=["Property", "Value"], tablefmt="github")
+
+        report = f"""
+    📊 Model Report
+    ====================
+    **Model ID:** {model_id}
+
+    📁 Files:
+    - results.json ✅
+    - model.pkl {'✅' if model_path.exists() else '❌'}
+
+    {table}
+    """
+        return report
+
