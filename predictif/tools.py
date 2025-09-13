@@ -306,17 +306,105 @@ def register_tools(mcp: FastMCP):
             # Full file path
             file_path = datasets_dir / filename
 
+            # Check if file already exists
+            if file_path.exists():
+                return f"❌ File already exists at: datasets/{filename}\n📄 Source: {document_name}\nUse a different custom_filename to save with a new name."
+
             # Save text content to file
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(text_content)
 
-            # Get relative path from project root for return
-            relative_path = file_path.relative_to(Path.cwd())
+            # Return relative path from project root
+            relative_path = f"datasets/{filename}"
 
             return f"✅ Document saved successfully!\n📍 Dataset saved at: {relative_path}\n📄 Source: {document_name}\n📊 Size: {len(text_content)} characters"
 
         except Exception as e:
-            return f"Error generating signed URLs for document {document_id} in library {library_id}: {str(e)}"
+            return f"Error saving document {document_id} to file: {str(e)}"
+
+    @mcp.tool(
+        title="List Dataset Files",
+        description="Lists all files in the datasets/ directory with detailed information including file size, type, and modification date.",
+    )
+    def list_dataset_files() -> str:
+        """
+        Lists all files stored in the datasets/ directory with comprehensive details.
+
+        This function works independently - no prerequisites needed. Use it to:
+        - Check what datasets are available before processing
+        - Verify files were saved correctly after using save_document_text_to_file
+        - Get file information for further analysis
+        - Monitor dataset storage usage
+
+        Returns:
+            str: Formatted list of all files with details (name, size, type, modified date)
+                 or message if directory is empty/doesn't exist
+        """
+        try:
+            datasets_dir = Path("datasets")
+
+            # Check if datasets directory exists
+            if not datasets_dir.exists():
+                return "📁 No datasets directory found. Use save_document_text_to_file to create it and add files."
+
+            # Get all files in datasets directory
+            files = list(datasets_dir.glob("*"))
+            files = [f for f in files if f.is_file()]  # Only files, not directories
+
+            if not files:
+                return "📂 Datasets directory exists but is empty.\n💡 Use save_document_text_to_file to add files."
+
+            # Sort files by modification time (newest first)
+            files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
+
+            # Build detailed file listing
+            result = []
+            result.append("📊 Dataset Files")
+            result.append("=" * 50)
+            result.append(f"📁 Location: datasets/")
+            result.append(f"📈 Total files: {len(files)}")
+            result.append("")
+
+            for file_path in files:
+                stat = file_path.stat()
+                file_size = stat.st_size
+
+                # Format file size
+                if file_size < 1024:
+                    size_str = f"{file_size} B"
+                elif file_size < 1024 * 1024:
+                    size_str = f"{file_size / 1024:.1f} KB"
+                else:
+                    size_str = f"{file_size / (1024 * 1024):.1f} MB"
+
+                # Get file extension for type
+                file_type = file_path.suffix.lower() or "no extension"
+
+                # Format modification time
+                from datetime import datetime
+                mod_time = datetime.fromtimestamp(stat.st_mtime)
+                mod_time_str = mod_time.strftime("%Y-%m-%d %H:%M:%S")
+
+                result.append(f"📄 {file_path.name}")
+                result.append(f"   └─ Size: {size_str}")
+                result.append(f"   └─ Type: {file_type}")
+                result.append(f"   └─ Modified: {mod_time_str}")
+                result.append(f"   └─ Path: datasets/{file_path.name}")
+                result.append("")
+
+            # Add total size
+            total_size = sum(f.stat().st_size for f in files)
+            if total_size < 1024 * 1024:
+                total_size_str = f"{total_size / 1024:.1f} KB"
+            else:
+                total_size_str = f"{total_size / (1024 * 1024):.1f} MB"
+
+            result.append(f"💾 Total storage used: {total_size_str}")
+
+            return "\n".join(result)
+
+        except Exception as e:
+            return f"Error listing dataset files: {str(e)}"
 
     @mcp.tool(
         title="Get model report",
