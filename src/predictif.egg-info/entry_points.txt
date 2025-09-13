@@ -1,0 +1,2 @@
+[console_scripts]
+predictif = predictif.main:main

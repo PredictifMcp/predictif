@@ -23,8 +23,9 @@ def setup_server() -> None:
 def main() -> None:
     """Main entry point."""
     setup_server()
-    fastmcp.run_stdio(app)
+    app.run()
 
 
 if __name__ == "__main__":
     main()
+

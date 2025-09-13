@@ -1,3 +1,15 @@
+Metadata-Version: 2.4
+Name: predictif
+Version: 0.1.0
+Summary: Prédictif is a MCP Server helping choose, train and exploit a model on your data
+Requires-Python: >=3.13
+Description-Content-Type: text/markdown
+Requires-Dist: fastmcp>=2.12.3
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: ruff; extra == "dev"
+Requires-Dist: mypy; extra == "dev"
+
 # Prédictif
 
 ![ogo](./logo.png)
@@ -18,16 +30,6 @@ The project is conducted by the team _HireUsFaang_ composed of
 - slavastar7 (Vyacheslav Efimov)
 - alexvplle (Alexis Vapaille)
 - dirdros (Adrien Pelfresne)
-
-## Installation
-
-```sh
-cd predictif
-
-uv sync
-
-PYTHONPATH=src uv run python -m predictif.main
-```
 
 ## Documentation
 

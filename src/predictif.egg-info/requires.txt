@@ -1,0 +1,6 @@
+fastmcp>=2.12.3
+
+[dev]
+pytest
+ruff
+mypy

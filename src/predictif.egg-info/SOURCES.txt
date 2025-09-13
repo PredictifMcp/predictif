@@ -1,0 +1,17 @@
+README.md
+pyproject.toml
+src/predictif/__init__.py
+src/predictif/main.py
+src/predictif.egg-info/PKG-INFO
+src/predictif.egg-info/SOURCES.txt
+src/predictif.egg-info/dependency_links.txt
+src/predictif.egg-info/entry_points.txt
+src/predictif.egg-info/requires.txt
+src/predictif.egg-info/top_level.txt
+src/predictif/resources/__init__.py
+src/predictif/resources/example_resources.py
+src/predictif/tools/__init__.py
+src/predictif/tools/example_tools.py
+src/predictif/utils/__init__.py
+src/predictif/utils/logging.py
+tests/test_main.py
