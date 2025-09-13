@@ -11,5 +11,5 @@ dependencies = [
     "flask-cors>=4.0.0",
     "mistralai>=1.0.0",
     "requests",
-    "huggingface-hub"
+    "huggingface-hub",
 ]

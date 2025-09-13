@@ -54,6 +54,9 @@ class MLManager:
             return True
 
         except Exception as e:
+            print(f"Training failed with error: {e}")
+            import traceback
+            traceback.print_exc()
             job.status = "failed"
             return False
 
@@ -68,6 +71,13 @@ class MLManager:
             repo_id=space_repo_id,
             repo_type="space",
             space_sdk="docker"
+        )
+
+        # Add HF_TOKEN as a secret to the space
+        api.add_space_secret(
+            repo_id=space_repo_id,
+            key="HF_TOKEN",
+            value=config.token
         )
 
         # Upload training script
@@ -188,12 +198,12 @@ def main():
 def deploy_inference_space():
     print("Deploying inference Space...")
 
-    token = os.getenv("HF_TOKEN", "{config.token}")
+    token = os.getenv("HF_TOKEN")
     api = HfApi(token=token)
     user_info = api.whoami()
     username = user_info["name"]
 
-    inference_space_name = "{config.model_name}-inference"
+    inference_space_name = "{config.model_name}-inference-{job_id[:8]}"
     inference_repo_id = f"{{username}}/{{inference_space_name}}"
 
     try:
@@ -209,6 +219,15 @@ def deploy_inference_space():
         api.upload_file(
             path_or_fileobj=inference_app.encode(),
             path_in_repo="app.py",
+            repo_id=inference_repo_id,
+            repo_type="space"
+        )
+
+        # Upload requirements for inference space
+        inference_requirements = generate_inference_requirements()
+        api.upload_file(
+            path_or_fileobj=inference_requirements.encode(),
+            path_in_repo="requirements.txt",
             repo_id=inference_repo_id,
             repo_type="space"
         )
@@ -234,6 +253,14 @@ def deploy_inference_space():
 
     except Exception as e:
         print(f"Failed to deploy inference Space: {{e}}")
+
+def generate_inference_requirements():
+    return '''gradio
+joblib
+pandas
+scikit-learn
+fastapi
+uvicorn'''
 
 def generate_inference_app():
     return '''
@@ -353,6 +380,9 @@ COPY requirements.txt .
 RUN pip install -r requirements.txt
 
 COPY . .
+
+# Fix permissions for writing model files
+RUN chmod 777 /app
 
 CMD ["python", "app.py"]
 """
