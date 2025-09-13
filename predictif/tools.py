@@ -310,10 +310,10 @@ def register_tools(mcp: FastMCP):
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(text_content)
 
-            # Get absolute path for return
-            absolute_path = file_path.resolve()
+            # Get relative path from project root for return
+            relative_path = file_path.relative_to(Path.cwd())
 
-            return f"✅ Document saved successfully!\n📍 File saved at: {absolute_path}\n📄 Source: {document_name}\n📊 Size: {len(text_content)} characters"
+            return f"✅ Document saved successfully!\n📍 Dataset saved at: {relative_path}\n📄 Source: {document_name}\n📊 Size: {len(text_content)} characters"
 
         except Exception as e:
             return f"Error generating signed URLs for document {document_id} in library {library_id}: {str(e)}"
