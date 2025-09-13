@@ -43,7 +43,7 @@ def register_tools(mcp: FastMCP):
 
             result = "User Libraries:\n"
             for library in libraries:
-                result += f"- {library.name} with {library.nb_documents} documents\n"
+                result += f"- {library.name} with {library.nb_documents} documents with the following id : {library.id}\n"
 
             return result.strip()
 
@@ -54,7 +54,9 @@ def register_tools(mcp: FastMCP):
         title="List Library Documents",
         description="Lists all documents in a specific library with their details",
     )
-    def list_library_documents(library_id: str = Field(description="ID of the library to list documents from")) -> str:
+    def list_library_documents(
+        library_id: str = Field(description="ID of the library to list documents from"),
+    ) -> str:
         """
         Lists all documents in a specific library.
 
@@ -65,15 +67,19 @@ def register_tools(mcp: FastMCP):
             str: Formatted list of documents with their details
         """
         try:
-            doc_list = mistral_client.beta.libraries.documents.list(library_id=library_id).data
+            doc_list = mistral_client.beta.libraries.documents.list(
+                library_id=library_id
+            ).data
 
             if not doc_list:
                 return f"No documents found in library with ID: {library_id}"
 
             result = f"Documents in library {library_id}:\n"
             for doc in doc_list:
-                result += f"- {doc.name}: {doc.extension} with {doc.number_of_pages} pages\n"
-                if hasattr(doc, 'summary') and doc.summary:
+                result += (
+                    f"- {doc.name}: {doc.extension} with {doc.number_of_pages} pages\n"
+                )
+                if hasattr(doc, "summary") and doc.summary:
                     result += f"  Summary: {doc.summary}\n"
 
             return result.strip()
