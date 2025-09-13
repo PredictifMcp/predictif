@@ -77,7 +77,7 @@ class LocalMLManager:
 
     def train_model_from_csv_path(self, csv_path: str, model_type: ModelType, model_params: Dict[str, Any] = None) -> Tuple[bool, str, str]:
         """
-        Train a model from CSV file path and return (success, user_uuid, message)
+        Train a model from CSV file path with enhanced error handling and context
 
         Returns:
             Tuple[bool, str, str]: (success, user_uuid, message)
@@ -86,9 +86,20 @@ class LocalMLManager:
         user_uuid = str(uuid.uuid4())
 
         try:
-            # Load CSV data from local path
+            # Enhanced loading with better error context
+            from pathlib import Path
+            csv_file = Path(csv_path)
+
             print(f"Loading dataset from: {csv_path}")
+
+            # Provide context about file location
+            if not csv_file.is_absolute():
+                current_dir = Path.cwd()
+                abs_path = current_dir / csv_path
+                print(f"Resolved absolute path: {abs_path}")
+
             csv_data = pd.read_csv(csv_path)
+            print(f"Successfully loaded CSV with shape: {csv_data.shape}")
 
             # Create training job
             job = self.create_training_job(user_uuid, model_type, model_params)
@@ -98,17 +109,26 @@ class LocalMLManager:
 
             if success:
                 accuracy_str = f"{job.accuracy:.4f}" if job.accuracy else "N/A"
+
+                # Enhanced success message with more context
+                model_dir = self._get_model_dir(user_uuid)
                 message = f"""✅ Training completed successfully!
 
-User UUID: {user_uuid}
-Model Type: {model_type.value}
-Dataset: {Path(csv_path).name}
-Accuracy: {accuracy_str}
+🆔 User UUID: {user_uuid}
+🤖 Model Type: {model_type.value}
+📁 Dataset: {Path(csv_path).name}
+🎯 Accuracy: {accuracy_str}
+💾 Model saved to: {model_dir}
 
-💡 Save this User UUID to make predictions later!"""
+📋 Next Steps:
+   • Use predict_with_model with UUID: {user_uuid}
+   • Use get_model_info to view detailed metrics
+   • Use list_trained_models to see all models
+
+💡 Save this UUID: {user_uuid}"""
                 return True, user_uuid, message
             else:
-                return False, user_uuid, f"❌ Training failed for {user_uuid}"
+                return False, user_uuid, f"❌ Training failed for {user_uuid}. Check logs for details."
 
         except Exception as e:
             return False, user_uuid, f"❌ Training failed: {e}"

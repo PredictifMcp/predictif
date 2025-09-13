@@ -47,7 +47,79 @@ def register_ml_tools(mcp: FastMCP):
         user_uuid: str = Field(description="User UUID returned from training"),
         csv_path: str = Field(description="Path to CSV file with feature values (same columns as training, no 'label' column)")
     ) -> str:
-        """Make predictions with trained model"""
+        """Make predictions with trained model with enhanced validation and context"""
+
+        # Enhanced validation before prediction
+        from pathlib import Path
+
+        # 1. Validate model exists
+        model = ml_manager.get_model(user_uuid)
+        if not model:
+            available_models = ml_manager.list_all_models()
+            if available_models:
+                models_list = "\n".join([f"   • {uuid[:8]}: {job.model_type}" for uuid, job in available_models.items()])
+                return f"❌ Model not found: {user_uuid[:8]}...\n\n📊 Available models:\n{models_list}\n\n💡 Use the full UUID returned from training."
+            else:
+                return f"❌ Model not found: {user_uuid[:8]}...\n\n📁 No trained models available.\n💡 Train a model first using train_ml_model."
+
+        # 2. Validate CSV file exists
+        csv_file = Path(csv_path)
+        if not csv_file.exists():
+            datasets_dir = Path("datasets")
+            if datasets_dir.exists():
+                available_files = [f.name for f in datasets_dir.glob("*.csv")]
+                if available_files:
+                    return f"❌ File not found: {csv_path}\n\n💡 Available CSV files:\n" + "\n".join([f"   • datasets/{f}" for f in available_files])
+                else:
+                    return f"❌ File not found: {csv_path}\n\n📁 No CSV files in datasets/ directory."
+            else:
+                return f"❌ File not found: {csv_path}\n\n📁 datasets/ directory doesn't exist."
+
+        # 3. Get model info for feature validation
+        model_info_detailed = ml_manager.get_model_info(user_uuid)
+        if model_info_detailed:
+            expected_features = model_info_detailed['metadata']['feature_names']
+            model_accuracy = model_info_detailed['metadata']['accuracy']
+            model_type = model_info_detailed['metadata']['model_type']
+
+            # Pre-validate input file structure
+            try:
+                import pandas as pd
+                input_df = pd.read_csv(csv_path)
+                input_features = list(input_df.columns)
+
+                # Check if input has label column (warn but don't fail)
+                has_label = 'label' in input_features
+                if has_label:
+                    input_features.remove('label')
+                    feature_note = f"ℹ️ Input file contains 'label' column - will be ignored for prediction."
+                else:
+                    feature_note = f"✅ Input file ready for prediction (no label column found)."
+
+                # Check feature compatibility
+                missing_features = set(expected_features) - set(input_features)
+                extra_features = set(input_features) - set(expected_features)
+
+                compatibility_info = []
+                compatibility_info.append(f"📋 Model expects {len(expected_features)} features: {expected_features}")
+                compatibility_info.append(f"📊 Input provides {len(input_features)} features: {input_features}")
+
+                if missing_features:
+                    return f"❌ Feature mismatch: Missing required features: {list(missing_features)}\n\n" + "\n".join(compatibility_info)
+
+                if extra_features:
+                    compatibility_info.append(f"⚠️ Extra features will be ignored: {list(extra_features)}")
+
+                compatibility_info.append(feature_note)
+                compatibility_info.append(f"🎯 Model accuracy: {model_accuracy:.4f}")
+                compatibility_info.append(f"🤖 Model type: {model_type}")
+
+                validation_summary = "\n🔍 Pre-prediction validation:\n" + "\n".join(compatibility_info) + "\n"
+
+            except Exception as e:
+                return f"❌ Input validation failed: {str(e)}\n💡 Ensure the file is a valid CSV."
+        else:
+            validation_summary = f"⚠️ Could not load model details for validation.\n"
 
         try:
             result = ml_manager.predict_from_csv_path(user_uuid, csv_path)
@@ -90,7 +162,7 @@ def register_ml_tools(mcp: FastMCP):
             for cls, count in sorted(class_counts.items()):
                 result_lines.append(f"  Class {cls}: {count} predictions")
 
-            return "\n".join(result_lines)
+            return validation_summary + "\n🚀 Prediction Results:\n" + "\n".join(result_lines)
 
         except Exception as e:
             return f"❌ Prediction error: {e}"
