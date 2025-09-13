@@ -1,0 +1,16 @@
+[project]
+name = "predictif"
+version = "0.1.0"
+description = "Prédictif is a MCP Server helping choose, train and exploit a model on your data"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = ["fastmcp>=2.12.3"]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff", "mypy"]
+
+[tool.ruff]
+line-length = 88
+
+[tool.mypy]
+python_version = "3.13"
