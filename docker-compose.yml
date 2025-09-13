@@ -8,6 +8,7 @@ services:
       - MISTRAL_API_KEY=${MISTRAL_API_KEY}
     volumes:
       - ./datasets:/app/datasets
+      - ./models:/app/models
     networks:
       - traefik_public
     restart: always

@@ -13,7 +13,7 @@ mcp = FastMCP(
     debug=False,
 )
 
-# Add resources for usage guidance
+
 @mcp.resource("predictif://usage-guide")
 def usage_guide() -> str:
     """Guide for using Predictif MCP Server tools effectively"""
@@ -68,6 +68,7 @@ When working with documents, always follow this sequence:
 - Library and document IDs are required for all document operations
 """
 
+
 @mcp.resource("predictif://api-reference")
 def api_reference() -> str:
     """Quick reference for all available tools"""
@@ -107,6 +108,7 @@ def api_reference() -> str:
 - **Returns**: "Echo: {message}"
 - **Use Case**: Server connectivity testing
 """
+
 
 register_tools(mcp)
 register_ml_tools(mcp)
