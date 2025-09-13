@@ -2,12 +2,20 @@
 Basic tools for Predictif MCP Server
 """
 
+import os
 from pydantic import Field
 from mcp.server.fastmcp import FastMCP
+from mistralai import Mistral
 
 
 def register_tools(mcp: FastMCP):
     """Register all tools with the MCP server"""
+
+    mistral_api_key = os.getenv("MISTRAL_API_KEY")
+    if not mistral_api_key:
+        raise ValueError("MISTRAL_API_KEY environment variable is required")
+
+    mistral_client = Mistral(api_key=mistral_api_key)
 
     @mcp.tool(
         title="Echo",
@@ -17,34 +25,27 @@ def register_tools(mcp: FastMCP):
         return f"Echo: {message}"
 
     @mcp.tool(
-        title="Accept File URL",
-        description="""
-                Accepts a file URL parameter and prints it.
-        This file parameter is the file_url of the file the user has posted inside the conversation
-
-        Args:
-            file_url (str): The file URL to process and print (file_url) the user has uploaded on the conversation
-
-        Returns:
-            str: Confirmation message with the processed URL
-
-        """,
+        title="List User Libraries",
+        description="Lists all libraries available to the current user with their document counts",
     )
-    def get_file_url(file_url: str) -> str:
+    def list_user_libraries() -> str:
         """
-        Accepts a file URL parameter and prints it.
-        This file parameter is the file_url of the file the user has posted inside the conversation
-
-        Args:
-            file_url (str): The file URL to process and print (file_url) the user has uploaded on the conversation
+        Lists all libraries available to the current user.
 
         Returns:
-            str: Confirmation message with the processed URL
+            str: Formatted list of libraries with their document counts
         """
-        if not file_url:
-            raise ValueError("file_url parameter is required and cannot be empty")
+        try:
+            libraries = mistral_client.beta.libraries.list().data
 
-        # Print the file URL
-        print(f"File URL: {file_url}")
+            if not libraries:
+                return "No libraries found for the current user."
 
-        return f"File URL received and printed: {file_url}"
+            result = "User Libraries:\n"
+            for library in libraries:
+                result += f"- {library.name} with {library.nb_documents} documents\n"
+
+            return result.strip()
+
+        except Exception as e:
+            return f"Error retrieving libraries: {str(e)}"

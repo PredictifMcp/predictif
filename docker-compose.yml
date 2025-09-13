@@ -4,6 +4,8 @@ services:
     container_name: predictif-production
     expose:
       - 3019
+    environment:
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY}
     networks:
       - traefik_public
     restart: always
