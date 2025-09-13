@@ -1,7 +1,7 @@
 import os
 from mcp.server.fastmcp import FastMCP
 from predictif.tools import register_tools
-from autotrain.mcp_tools import register_ml_tools
+from mltools.mcp_tools import register_ml_tools
 
 port = int(os.getenv("PORT", 3000))
 

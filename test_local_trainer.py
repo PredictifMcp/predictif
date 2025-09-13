@@ -5,8 +5,8 @@ Test script for local ML trainer functionality
 
 import pandas as pd
 from pathlib import Path
-from autotrain.local_trainer import LocalMLManager
-from autotrain.models import ModelType
+from mltools.local_trainer import LocalMLManager
+from mltools.models import ModelType
 
 def create_test_dataset():
     """Create a simple test dataset"""
