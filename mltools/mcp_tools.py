@@ -20,11 +20,26 @@ def register_ml_tools(mcp: FastMCP):
         description="MAIN ENTRY POINT: Train a machine learning model. If no CSV path provided, guides you through the complete workflow: find libraries → extract documents → save as dataset → train model. Always use save_document_text_to_file workflow for dataset creation.",
     )
     def train_ml_model(
-        csv_path: str = Field(default="", description="Path to CSV file. If empty, will guide through library→document→dataset extraction workflow"),
-        model_type: str = Field(default="random_forest", description="Type of model to train: random_forest, svm, logistic_regression, gradient_boosting"),
-        library_id: str = Field(default="", description="(Workflow mode) Library ID containing the document - get from list_user_libraries()"),
-        document_id: str = Field(default="", description="(Workflow mode) Document ID to extract - get from list_library_documents()"),
-        dataset_name: str = Field(default="", description="(Workflow mode) Custom name for dataset file (optional)")
+        csv_path: str = Field(
+            default="",
+            description="Path to CSV file. If empty, will guide through library→document→dataset extraction workflow",
+        ),
+        model_type: str = Field(
+            default="random_forest",
+            description="Type of model to train: random_forest, svm, logistic_regression, gradient_boosting",
+        ),
+        library_id: str = Field(
+            default="",
+            description="(Workflow mode) Library ID containing the document - get from list_user_libraries()",
+        ),
+        document_id: str = Field(
+            default="",
+            description="(Workflow mode) Document ID to extract - get from list_library_documents()",
+        ),
+        dataset_name: str = Field(
+            default="",
+            description="(Workflow mode) Custom name for dataset file (optional)",
+        ),
     ) -> str:
         """MAIN ENTRY POINT: Complete ML training workflow with automatic dataset creation from libraries"""
 
@@ -72,7 +87,10 @@ def register_ml_tools(mcp: FastMCP):
                 # Import required functions from predictif.tools
                 import sys
                 import os
-                sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'predictif'))
+
+                sys.path.append(
+                    os.path.join(os.path.dirname(__file__), "..", "predictif")
+                )
                 from predictif.tools import save_document_text_to_file
 
                 workflow_results = []
@@ -89,7 +107,7 @@ def register_ml_tools(mcp: FastMCP):
                     library_id=library_id,
                     document_id=document_id,
                     custom_filename=dataset_name,
-                    validate_csv=True
+                    validate_csv=True,
                 )
 
                 # Check if extraction failed
@@ -100,15 +118,20 @@ def register_ml_tools(mcp: FastMCP):
 
                 # Parse dataset path from save result
                 import re
+
                 path_match = re.search(r"Dataset saved at: ([^\n]+)", save_result)
                 if not path_match:
-                    workflow_results.append("❌ Could not determine dataset path from extraction result")
+                    workflow_results.append(
+                        "❌ Could not determine dataset path from extraction result"
+                    )
                     workflow_results.append(save_result)
                     return "\n".join(workflow_results)
 
                 extracted_dataset_path = path_match.group(1)
 
-                workflow_results.append(f"✅ Dataset extracted successfully: {extracted_dataset_path}")
+                workflow_results.append(
+                    f"✅ Dataset extracted successfully: {extracted_dataset_path}"
+                )
                 workflow_results.append("")
                 workflow_results.append("⏳ STEP 2: Starting model training...")
 
@@ -127,6 +150,7 @@ def register_ml_tools(mcp: FastMCP):
 
         # Validate CSV file exists
         from pathlib import Path
+
         if not Path(csv_path).exists():
             return f"""❌ CSV file not found: {csv_path}
 
@@ -142,8 +166,9 @@ def register_ml_tools(mcp: FastMCP):
         # Pre-training validation
         try:
             import pandas as pd
+
             df = pd.read_csv(csv_path)
-            if 'label' not in df.columns:
+            if "label" not in df.columns:
                 return f"""❌ Dataset validation failed: No 'label' column found
 
 📊 Current columns in {Path(csv_path).name}: {list(df.columns)}
@@ -159,12 +184,11 @@ def register_ml_tools(mcp: FastMCP):
 
         # Train model from CSV path
         success, user_uuid, training_message = ml_manager.train_model_from_csv_path(
-            csv_path=csv_path,
-            model_type=model_type_enum
+            csv_path=csv_path, model_type=model_type_enum
         )
 
         # Enhanced result formatting
-        if 'workflow_results' in locals():
+        if "workflow_results" in locals():
             # Workflow mode - combine extraction and training results
             workflow_results.append("")
             workflow_results.append("📊 TRAINING RESULTS:")
@@ -177,8 +201,12 @@ def register_ml_tools(mcp: FastMCP):
                 workflow_results.append(f"🆔 Model UUID: {user_uuid}")
                 workflow_results.append("")
                 workflow_results.append("🔮 NEXT STEPS:")
-                workflow_results.append(f"   • Make predictions: predict_with_model(model_uuid='{user_uuid}', dataset_file='test_data.csv')")
-                workflow_results.append(f"   • Get model info: get_model_info(user_uuid='{user_uuid}')")
+                workflow_results.append(
+                    f"   • Make predictions: predict_with_model(model_uuid='{user_uuid}', dataset_file='test_data.csv')"
+                )
+                workflow_results.append(
+                    f"   • Get model info: get_model_info(user_uuid='{user_uuid}')"
+                )
 
             return "\n".join(workflow_results)
         else:
@@ -190,8 +218,12 @@ def register_ml_tools(mcp: FastMCP):
         description="Make predictions using a trained model UUID with CSV data. Automatically resolves dataset paths from ./datasets/ directory.",
     )
     def predict_with_model(
-        model_uuid: str = Field(description="Model UUID returned from training (e.g., from train_ml_model)"),
-        dataset_file: str = Field(description="Dataset filename (e.g., 'iris.csv') - automatically looks in ./datasets/ directory")
+        model_uuid: str = Field(
+            description="Model UUID returned from training (e.g., from train_ml_model)"
+        ),
+        dataset_file: str = Field(
+            description="Dataset filename (e.g., 'iris.csv') - automatically looks in ./datasets/ directory"
+        ),
     ) -> str:
         """Make predictions with trained model using Model UUID and automatic dataset path resolution"""
 
@@ -199,7 +231,9 @@ def register_ml_tools(mcp: FastMCP):
         from pathlib import Path
 
         # Automatically resolve dataset path
-        if not dataset_file.startswith('./datasets/') and not dataset_file.startswith('datasets/'):
+        if not dataset_file.startswith("./datasets/") and not dataset_file.startswith(
+            "datasets/"
+        ):
             # Auto-resolve: if user says "iris.csv", make it "./datasets/iris.csv"
             csv_path = f"./datasets/{dataset_file}"
         else:
@@ -210,7 +244,12 @@ def register_ml_tools(mcp: FastMCP):
         if not model:
             available_models = ml_manager.list_all_models()
             if available_models:
-                models_list = "\n".join([f"   • {uuid}: {job.model_type}" for uuid, job in available_models.items()])
+                models_list = "\n".join(
+                    [
+                        f"   • {uuid}: {job.model_type}"
+                        for uuid, job in available_models.items()
+                    ]
+                )
                 return f"❌ Model not found: {model_uuid}\n\n📊 Available models:\n{models_list}\n\n💡 Use the exact UUID returned from training."
             else:
                 return f"❌ Model not found: {model_uuid}\n\n📁 No trained models available.\n💡 Train a model first using train_ml_model."
@@ -222,7 +261,11 @@ def register_ml_tools(mcp: FastMCP):
             if datasets_dir.exists():
                 available_files = [f.name for f in datasets_dir.glob("*.csv")]
                 if available_files:
-                    return f"❌ Dataset not found: {csv_path}\n\n💡 Available datasets:\n" + "\n".join([f"   • {f}" for f in available_files]) + "\n\n🔍 Just provide the filename (e.g., 'iris.csv') - path resolution is automatic!"
+                    return (
+                        f"❌ Dataset not found: {csv_path}\n\n💡 Available datasets:\n"
+                        + "\n".join([f"   • {f}" for f in available_files])
+                        + "\n\n🔍 Just provide the filename (e.g., 'iris.csv') - path resolution is automatic!"
+                    )
                 else:
                     return f"❌ Dataset not found: {csv_path}\n\n📁 No CSV files in datasets/ directory."
             else:
@@ -231,43 +274,59 @@ def register_ml_tools(mcp: FastMCP):
         # 3. Get model info for feature validation using model_uuid
         model_info_detailed = ml_manager.get_model_info(model_uuid)
         if model_info_detailed:
-            expected_features = model_info_detailed['metadata']['feature_names']
-            model_accuracy = model_info_detailed['metadata']['accuracy']
-            model_type = model_info_detailed['metadata']['model_type']
+            expected_features = model_info_detailed["metadata"]["feature_names"]
+            model_accuracy = model_info_detailed["metadata"]["accuracy"]
+            model_type = model_info_detailed["metadata"]["model_type"]
 
             # Pre-validate input file structure
             try:
                 import pandas as pd
+
                 input_df = pd.read_csv(csv_path)
                 input_features = list(input_df.columns)
 
                 # Check if input has label column (warn but don't fail)
-                has_label = 'label' in input_features
+                has_label = "label" in input_features
                 if has_label:
-                    input_features.remove('label')
+                    input_features.remove("label")
                     feature_note = f"ℹ️ Input file contains 'label' column - will be ignored for prediction."
                 else:
-                    feature_note = f"✅ Input file ready for prediction (no label column found)."
+                    feature_note = (
+                        f"✅ Input file ready for prediction (no label column found)."
+                    )
 
                 # Check feature compatibility
                 missing_features = set(expected_features) - set(input_features)
                 extra_features = set(input_features) - set(expected_features)
 
                 compatibility_info = []
-                compatibility_info.append(f"📋 Model expects {len(expected_features)} features: {expected_features}")
-                compatibility_info.append(f"📊 Input provides {len(input_features)} features: {input_features}")
+                compatibility_info.append(
+                    f"📋 Model expects {len(expected_features)} features: {expected_features}"
+                )
+                compatibility_info.append(
+                    f"📊 Input provides {len(input_features)} features: {input_features}"
+                )
 
                 if missing_features:
-                    return f"❌ Feature mismatch: Missing required features: {list(missing_features)}\n\n" + "\n".join(compatibility_info)
+                    return (
+                        f"❌ Feature mismatch: Missing required features: {list(missing_features)}\n\n"
+                        + "\n".join(compatibility_info)
+                    )
 
                 if extra_features:
-                    compatibility_info.append(f"⚠️ Extra features will be ignored: {list(extra_features)}")
+                    compatibility_info.append(
+                        f"⚠️ Extra features will be ignored: {list(extra_features)}"
+                    )
 
                 compatibility_info.append(feature_note)
                 compatibility_info.append(f"🎯 Model accuracy: {model_accuracy:.4f}")
                 compatibility_info.append(f"🤖 Model type: {model_type}")
 
-                validation_summary = "\n🔍 Pre-prediction validation:\n" + "\n".join(compatibility_info) + "\n"
+                validation_summary = (
+                    "\n🔍 Pre-prediction validation:\n"
+                    + "\n".join(compatibility_info)
+                    + "\n"
+                )
 
             except Exception as e:
                 return f"❌ Input validation failed: {str(e)}\n💡 Ensure the file is a valid CSV."
@@ -301,7 +360,9 @@ def register_ml_tools(mcp: FastMCP):
             for i, pred in enumerate(predictions[:5]):
                 predicted_class = pred["prediction"]
                 confidence = pred["max_probability"]
-                result_lines.append(f"Row {i+1}: Class {predicted_class} (confidence: {confidence:.4f})")
+                result_lines.append(
+                    f"Row {i + 1}: Class {predicted_class} (confidence: {confidence:.4f})"
+                )
 
             if len(predictions) > 5:
                 result_lines.append(f"... and {len(predictions) - 5} more predictions")
@@ -317,7 +378,11 @@ def register_ml_tools(mcp: FastMCP):
             for cls, count in sorted(class_counts.items()):
                 result_lines.append(f"  Class {cls}: {count} predictions")
 
-            return validation_summary + "\n🚀 Prediction Results:\n" + "\n".join(result_lines)
+            return (
+                validation_summary
+                + "\n🚀 Prediction Results:\n"
+                + "\n".join(result_lines)
+            )
 
         except Exception as e:
             return f"❌ Prediction error: {e}"
@@ -345,7 +410,7 @@ def register_ml_tools(mcp: FastMCP):
         description="Get detailed information about a specific trained model",
     )
     def get_model_info(
-        user_uuid: str = Field(description="User UUID of the model to get info for")
+        user_uuid: str = Field(description="User UUID of the model to get info for"),
     ) -> str:
         """Get detailed model information"""
         model_info = ml_manager.get_model_info(user_uuid)
@@ -361,19 +426,19 @@ def register_ml_tools(mcp: FastMCP):
 
 Type: {model.model_type}
 Status: {model.status}
-Accuracy: {metadata['accuracy']:.4f}
-Trained: {metadata['trained_at'][:19].replace('T', ' ')}
+Accuracy: {metadata["accuracy"]:.4f}
+Trained: {metadata["trained_at"][:19].replace("T", " ")}
 
 Dataset Info:
-• Shape: {metadata['dataset_shape']}
-• Features: {', '.join(metadata['feature_names'])}
-• Classes: {metadata['n_classes']} ({metadata['classes']})
+• Shape: {metadata["dataset_shape"]}
+• Features: {", ".join(metadata["feature_names"])}
+• Classes: {metadata["n_classes"]} ({metadata["classes"]})
 
-Model Parameters: {metadata['model_params']}
+Model Parameters: {metadata["model_params"]}
 
 Files:
-• Directory: {files['model_dir']}
-• Size: {files['model_size_mb']} MB"""
+• Directory: {files["model_dir"]}
+• Size: {files["model_size_mb"]} MB"""
 
         return info
 
@@ -382,7 +447,7 @@ Files:
         description="Delete a trained model and its files",
     )
     def delete_model(
-        user_uuid: str = Field(description="User UUID of the model to delete")
+        user_uuid: str = Field(description="User UUID of the model to delete"),
     ) -> str:
         """Delete a trained model"""
         success = ml_manager.delete_model(user_uuid)
@@ -391,3 +456,4 @@ Files:
             return f"✅ Model {user_uuid} deleted successfully"
         else:
             return f"❌ Failed to delete model {user_uuid} (model not found)"
+

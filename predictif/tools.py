@@ -220,7 +220,7 @@ def register_tools(mcp: FastMCP):
 
     @mcp.tool(
         title="Save Document Text to File",
-        description="Extracts text content from a document and saves it as a file in datasets/ directory with proper validation and path handling. Use list_user_libraries() first to get library ID, then list_library_documents() to get document ID. This function checks for existing files with the same name and validates CSV format.",
+        description="Extracts text content from a document and saves it as a file in datasets/ directory. Always uses the original document name and overwrites existing files. Fixed path structure: datasets/[document_name]",
     )
     def save_document_text_to_file(
         library_id: str = Field(
@@ -229,43 +229,41 @@ def register_tools(mcp: FastMCP):
         document_id: str = Field(
             description="ID of the document to save (get from list_library_documents())"
         ),
-        custom_filename: str = Field(
-            default="",
-            description="Custom filename (optional, will use document name if not provided)",
-        ),
-        validate_csv: bool = Field(
-            default=True,
-            description="Whether to validate the file as CSV and check for 'label' column (default: True)",
-        ),
     ) -> str:
         """
         Extracts text from a document and saves it as a file in datasets/ directory.
+        Always uses the original document name and overwrites existing files.
 
-        Workflow:
-        1. Call list_user_libraries() to find library ID from library name
-        2. Call list_library_documents(library_id) to find document ID from document name
-        3. Call this function with both IDs to save the text content as a file
+        REQUIRED WORKFLOW - Follow these steps in order:
+        1. First, call list_user_libraries() to see all available libraries
+           - This shows you library names and their corresponding IDs
+           - Find the library you want by name, note its ID
+
+        2. Second, call list_library_documents(library_id="the_id_from_step_1")
+           - This shows all documents in that library with their names and IDs
+           - Find the document you want by name, note its ID
+
+        3. Finally, call this function save_document_text_to_file() with both IDs
+           - The file will be saved as datasets/[original_document_name]
+           - Any existing file with the same name will be overwritten
 
         Args:
-            library_id (str): The ID of the library containing the document
-            document_id (str): The ID of the document to save
-            custom_filename (str): Optional custom filename (will preserve original extension)
+            library_id (str): The ID of the library (get from list_user_libraries)
+            document_id (str): The ID of the document (get from list_library_documents)
 
         Returns:
-            str: Full path where the text file was saved
+            str: Status message with file path
         """
         try:
-            # Get document info to extract name and extension
+            # Get document info to extract name
             documents = mistral_client.beta.libraries.documents.list(
                 library_id=library_id
             ).data
 
             document_name = None
-            document_extension = None
             for doc in documents:
                 if doc.id == document_id:
                     document_name = doc.name
-                    document_extension = doc.extension
                     break
 
             if not document_name:
@@ -277,74 +275,18 @@ def register_tools(mcp: FastMCP):
             )
             text_content = extracted_text.text
 
-            if not text_content.strip():
-                return "Error: Document appears to be empty"
-
-            # Generate filename
-            if custom_filename:
-                # If custom filename is provided, preserve original extension if it has one
-                if "." in custom_filename:
-                    filename = custom_filename
-                else:
-                    # Add original extension to custom filename
-                    filename = (
-                        f"{custom_filename}.{document_extension}"
-                        if document_extension
-                        else f"{custom_filename}.txt"
-                    )
-            else:
-                # Use original document name
-                filename = document_name
-
             # Create datasets directory if it doesn't exist
             datasets_dir = Path("datasets")
             datasets_dir.mkdir(exist_ok=True)
 
-            # Full file path
-            file_path = datasets_dir / filename
+            # Use original document name for file path
+            file_path = datasets_dir / document_name
 
-            # Check if file already exists
-            if file_path.exists():
-                # For exact same filename, check if content is identical
-                with open(file_path, "r", encoding="utf-8") as f:
-                    existing_content = f.read()
-
-                if existing_content == text_content:
-                    return f"✅ File already exists with identical content at: datasets/{filename}\n📄 Source: {document_name}\n💡 Ready for training!"
-                else:
-                    return f"❌ File already exists with different content at: datasets/{filename}\n📄 Source: {document_name}\nUse a different custom_filename to save with a new name."
-
-            # Validate CSV format if requested
-            csv_validation_info = ""
-            if validate_csv:
-                try:
-                    # Try to parse as CSV
-                    df = pd.read_csv(io.StringIO(text_content))
-
-                    # Check for required 'label' column
-                    if "label" not in df.columns:
-                        csv_validation_info = f"\n⚠️ CSV Warning: No 'label' column found. Columns: {list(df.columns)}\n💡 For ML training, add a 'label' column or use a different dataset."
-                    else:
-                        unique_labels = df["label"].nunique()
-                        csv_validation_info = f"\n✅ CSV Valid: Found 'label' column with {unique_labels} unique classes\n📊 Dataset shape: {df.shape[0]} rows, {df.shape[1]} columns"
-
-                        # Show label distribution
-                        label_dist = df["label"].value_counts().to_dict()
-                        csv_validation_info += f"\n📈 Label distribution: {label_dist}"
-
-                except Exception as e:
-                    csv_validation_info = (
-                        f"\n⚠️ CSV Warning: Could not parse as CSV: {str(e)}"
-                    )
-
-            # Save text content to file
+            # Save text content to file (always overwrite)
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(text_content)
 
-            # Return relative path from project root
-            relative_path = f"datasets/{filename}"
-
-            return f"✅ Document saved successfully!\n📍 Dataset saved at: {relative_path}\n📄 Source: {document_name}\n📊 Size: {len(text_content)} characters{csv_validation_info}"
+            return f"File saved at: datasets/{document_name}"
 
         except Exception as e:
             return f"Error saving document {document_id} to file: {str(e)}"
