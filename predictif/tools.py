@@ -49,3 +49,34 @@ def register_tools(mcp: FastMCP):
 
         except Exception as e:
             return f"Error retrieving libraries: {str(e)}"
+
+    @mcp.tool(
+        title="List Library Documents",
+        description="Lists all documents in a specific library with their details",
+    )
+    def list_library_documents(library_id: str = Field(description="ID of the library to list documents from")) -> str:
+        """
+        Lists all documents in a specific library.
+
+        Args:
+            library_id (str): The ID of the library to list documents from
+
+        Returns:
+            str: Formatted list of documents with their details
+        """
+        try:
+            doc_list = mistral_client.beta.libraries.documents.list(library_id=library_id).data
+
+            if not doc_list:
+                return f"No documents found in library with ID: {library_id}"
+
+            result = f"Documents in library {library_id}:\n"
+            for doc in doc_list:
+                result += f"- {doc.name}: {doc.extension} with {doc.number_of_pages} pages\n"
+                if hasattr(doc, 'summary') and doc.summary:
+                    result += f"  Summary: {doc.summary}\n"
+
+            return result.strip()
+
+        except Exception as e:
+            return f"Error retrieving documents from library {library_id}: {str(e)}"
