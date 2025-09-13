@@ -11,7 +11,7 @@ from pydantic import Field
 from typing import Dict
 from mcp.server.fastmcp import FastMCP
 from mistralai import Mistral
-from tabulate import tabulate 
+from tabulate import tabulate
 
 
 def register_tools(mcp: FastMCP):
@@ -317,15 +317,13 @@ def register_tools(mcp: FastMCP):
 
         except Exception as e:
             return f"Error generating signed URLs for document {document_id} in library {library_id}: {str(e)}"
-            
+
     @mcp.tool(
         title="Get model report",
         description="Get model report with detailed information",
     )
     def get_model_report(
-        model_id: str = Field(
-            description="ID of the created model"
-        )
+        model_id: str = Field(description="ID of the created model"),
     ) -> str:
         """
         Generates the model report and returns it in the form of text.
@@ -366,9 +364,8 @@ def register_tools(mcp: FastMCP):
 
     📁 Files:
     - results.json ✅
-    - model.pkl {'✅' if model_path.exists() else '❌'}
+    - model.pkl {"✅" if model_path.exists() else "❌"}
 
     {table}
     """
         return report
-
