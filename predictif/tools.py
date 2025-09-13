@@ -46,7 +46,9 @@ def register_tools(mcp: FastMCP):
                 return "No libraries found for the current user."
 
             result = "Available Libraries:\n"
-            result += "Format: [Library Name] -> ID: [library_id] | Documents: [count]\n\n"
+            result += (
+                "Format: [Library Name] -> ID: [library_id] | Documents: [count]\n\n"
+            )
 
             for library in libraries:
                 result += f"[{library.name}] -> ID: {library.id} | Documents: {library.nb_documents}\n"
@@ -61,7 +63,9 @@ def register_tools(mcp: FastMCP):
         description="Lists all documents in a specific library with structured output. Use list_user_libraries() first to get the library ID from a library name, then use that ID with this function.",
     )
     def list_library_documents(
-        library_id: str = Field(description="ID of the library to list documents from (get this from list_user_libraries() first)"),
+        library_id: str = Field(
+            description="ID of the library to list documents from (get this from list_user_libraries() first)"
+        ),
     ) -> str:
         """
         Lists all documents in a specific library with clean, structured output optimized for name-to-ID mapping.
@@ -85,7 +89,9 @@ def register_tools(mcp: FastMCP):
                 return f"No documents found in library with ID: {library_id}"
 
             result = f"Documents in Library {library_id}:\n"
-            result += "Format: [Document Name] -> ID: [document_id] | Type: [extension]\n\n"
+            result += (
+                "Format: [Document Name] -> ID: [document_id] | Type: [extension]\n\n"
+            )
 
             for doc in doc_list:
                 result += f"[{doc.name}] -> ID: {doc.id} | Type: {doc.extension}\n"
@@ -103,7 +109,9 @@ def register_tools(mcp: FastMCP):
         library_id: str = Field(
             description="ID of the library containing the document (get from list_user_libraries())"
         ),
-        document_id: str = Field(description="ID of the document to extract text from (get from list_library_documents())"),
+        document_id: str = Field(
+            description="ID of the document to extract text from (get from list_library_documents())"
+        ),
     ) -> str:
         """
         Extracts the full text content from a document in a library.
@@ -137,7 +145,9 @@ def register_tools(mcp: FastMCP):
         library_id: str = Field(
             description="ID of the library containing the document (get from list_user_libraries())"
         ),
-        document_id: str = Field(description="ID of the document to analyze as CSV (get from list_library_documents())"),
+        document_id: str = Field(
+            description="ID of the document to analyze as CSV (get from list_library_documents())"
+        ),
         separator: str = Field(
             default=",", description="CSV separator character (default: comma)"
         ),
@@ -210,3 +220,98 @@ def register_tools(mcp: FastMCP):
             )
         except Exception as e:
             return f"Error analyzing document {document_id} as CSV: {str(e)}"
+
+    @mcp.tool(
+        title="Get Document Signed URLs",
+        description="Retrieves signed URLs and comprehensive information for a document in a library. Use list_user_libraries() first to get library ID, then list_library_documents() to get document ID.",
+    )
+    def get_document_signed_urls(
+        library_id: str = Field(
+            description="ID of the library containing the document (get from list_user_libraries())"
+        ),
+        document_id: str = Field(
+            description="ID of the document to get signed URLs for (get from list_library_documents())"
+        ),
+    ) -> str:
+        """
+        Retrieves comprehensive document information including signed URLs for direct access.
+
+        Workflow:
+        1. Call list_user_libraries() to find library ID from library name
+        2. Call list_library_documents(library_id) to find document ID from document name
+        3. Call this function with both IDs
+
+        Args:
+            library_id (str): The ID of the library containing the document
+            document_id (str): The ID of the document to get signed URLs for
+
+        Returns:
+            str: Comprehensive document information including metadata, signed URLs, and summary
+        """
+        try:
+            # Get document metadata
+            document_info = mistral_client.beta.libraries.documents.get(
+                library_id=library_id, document_id=document_id
+            )
+
+            # Get text content with signed URLs
+            text_content_response = mistral_client.beta.libraries.documents.text_content(
+                library_id=library_id, document_id=document_id
+            )
+
+            # Build comprehensive response
+            result = []
+            result.append("Document Information and Access URLs:")
+            result.append("=" * 50)
+            result.append("")
+
+            # Document Metadata
+            result.append("📄 Document Metadata:")
+            result.append(f"  Name: {document_info.name}")
+            result.append(f"  ID: {document_info.id}")
+            result.append(f"  Extension: {document_info.extension}")
+            result.append(f"  Number of Pages: {document_info.number_of_pages}")
+            if hasattr(document_info, 'size') and document_info.size:
+                result.append(f"  File Size: {document_info.size} bytes")
+            if hasattr(document_info, 'created_at') and document_info.created_at:
+                result.append(f"  Created: {document_info.created_at}")
+            if hasattr(document_info, 'updated_at') and document_info.updated_at:
+                result.append(f"  Updated: {document_info.updated_at}")
+            result.append("")
+
+            # Library Context
+            result.append("📚 Library Context:")
+            result.append(f"  Library ID: {library_id}")
+            result.append("")
+
+            # Document Summary
+            if hasattr(document_info, 'summary') and document_info.summary:
+                result.append("📝 Document Summary:")
+                result.append(f"  {document_info.summary}")
+                result.append("")
+
+            # Signed URLs
+            result.append("🔗 Access URLs:")
+            if hasattr(text_content_response, 'signed_url') and text_content_response.signed_url:
+                result.append(f"  📄 Text Content URL: {text_content_response.signed_url}")
+                result.append("    ↳ Use this URL to access the extracted text content")
+
+            if hasattr(text_content_response, 'raw_signed_url') and text_content_response.raw_signed_url:
+                result.append(f"  📋 Raw Document URL: {text_content_response.raw_signed_url}")
+                result.append("    ↳ Use this URL to download the original document file")
+
+            if not (hasattr(text_content_response, 'signed_url') or hasattr(text_content_response, 'raw_signed_url')):
+                result.append("  No signed URLs available for this document")
+            result.append("")
+
+            # Usage Instructions
+            result.append("💡 Usage Instructions:")
+            result.append("  • Text Content URL: Access processed, extracted text from the document")
+            result.append("  • Raw Document URL: Download the original document file")
+            result.append("  • URLs are time-limited and secure for temporary access")
+            result.append("  • Use these URLs in applications, browsers, or API calls")
+
+            return "\n".join(result)
+
+        except Exception as e:
+            return f"Error retrieving document information and URLs for document {document_id} in library {library_id}: {str(e)}"
