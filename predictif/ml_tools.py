@@ -135,6 +135,49 @@ Class distribution:
         )
 
     @mcp.tool(
+        title="List Trained Models",
+        description="List all trained models with their detailed information and metrics",
+    )
+    def list_trained_models() -> str:
+        trained_models = ml_manager.list_all_models()
+
+        if not trained_models:
+            return "No trained models found in the models directory."
+
+        models_info = []
+        for model_uuid, model_job in trained_models.items():
+            model_info = ml_manager.get_model_info(model_uuid)
+
+            if model_info:
+                metadata = model_info["metadata"]
+                files = model_info["files"]
+
+                test_size = metadata.get("test_size", 0.2)
+                train_samples = metadata.get("train_samples", "N/A")
+                test_samples = metadata.get("test_samples", "N/A")
+
+                train_ratio = f"{(1-test_size)*100:.1f}%" if isinstance(test_size, (int, float)) else "N/A"
+                test_ratio = f"{test_size*100:.1f}%" if isinstance(test_size, (int, float)) else "N/A"
+
+                model_summary = f"""┌─ Model: {model_uuid[:8]}...
+├─ Type: {model_job.model_type}
+├─ Status: {model_job.status}
+├─ Accuracy: {metadata["accuracy"]:.4f} ({metadata["accuracy"]*100:.2f}%)
+├─ Trained: {metadata["trained_at"][:19].replace("T", " ")}
+├─ Dataset: {metadata["dataset_shape"]} samples, {len(metadata["feature_names"])} features
+├─ Classes: {metadata["n_classes"]} ({metadata["classes"]})
+├─ Split: {train_ratio} train / {test_ratio} test ({train_samples}/{test_samples})
+├─ Features: {", ".join(metadata["feature_names"][:3])}{"..." if len(metadata["feature_names"]) > 3 else ""}
+└─ Size: {files["model_size_mb"]} MB"""
+
+                models_info.append(model_summary)
+            else:
+                models_info.append(f"┌─ Model: {model_uuid[:8]}...\n├─ Type: {model_job.model_type}\n├─ Status: {model_job.status}\n└─ Error: Unable to load metadata")
+
+        header = f"Found {len(trained_models)} trained model{'s' if len(trained_models) != 1 else ''}:\n\n"
+        return header + "\n\n".join(models_info)
+
+    @mcp.tool(
         title="Get Model Info",
         description="Get detailed information about a trained model",
     )
