@@ -101,20 +101,12 @@ Class distribution:
             return f"Prediction error: {str(e)}"
 
     @mcp.tool(
-        title="List Trained Models",
-        description="List all trained models",
+        title="List Supported Models",
+        description="List all supported model types for training",
     )
-    def list_trained_models() -> str:
-        models = ml_manager.list_all_models()
-        if not models:
-            return "No trained models found."
-
-        model_list = ["Available trained models:"]
-        for model_uuid, job in models.items():
-            accuracy = f" (Accuracy: {job.accuracy:.4f})" if job.accuracy else ""
-            model_list.append(f"• {model_uuid}: {job.model_type}{accuracy}")
-
-        return "\n".join(model_list)
+    def list_supported_models() -> str:
+        model_types = [model_type.value for model_type in ModelType]
+        return f"Supported model types:\n" + "\n".join([f"• {model_type}" for model_type in model_types])
 
     @mcp.tool(
         title="Get Model Info",
@@ -125,7 +117,7 @@ Class distribution:
     ) -> str:
         model_info = ml_manager.get_model_info(user_uuid)
         if not model_info:
-            return f"Model '{user_uuid}' not found. Use list_trained_models to see available models."
+            return f"Model '{user_uuid}' not found."
 
         model = model_info["model"]
         metadata = model_info["metadata"]

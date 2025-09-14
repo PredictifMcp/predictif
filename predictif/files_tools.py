@@ -80,3 +80,25 @@ def register_file_tools(mcp: FastMCP):
             return file_manager.save_document(file_info['library_id'], file_info['document_id'])
         except Exception as e:
             return f"Error saving {filename} to file: {str(e)}"
+
+    @mcp.tool(
+        title="List Datasets",
+        description="List all saved datasets in the datasets/ directory.",
+    )
+    def list_datasets() -> str:
+        try:
+            return file_manager.list_datasets()
+        except Exception as e:
+            return f"Error listing datasets: {str(e)}"
+
+    @mcp.tool(
+        title="Delete Dataset",
+        description="Delete a saved dataset file by filename.",
+    )
+    def delete_dataset(
+        filename: str = Field(description="Name of the dataset file to delete"),
+    ) -> str:
+        try:
+            return file_manager.delete_dataset(filename)
+        except Exception as e:
+            return f"Error deleting dataset: {str(e)}"

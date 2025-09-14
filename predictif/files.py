@@ -114,3 +114,40 @@ class FileManager:
                     }
 
         return None
+
+    def list_datasets(self):
+        datasets_dir = Path("datasets")
+        if not datasets_dir.exists():
+            return "datasets/ directory doesn't exist"
+
+        csv_files = list(datasets_dir.glob("*.csv"))
+        if not csv_files:
+            return "No CSV files found in datasets/ directory"
+
+        result = ["Available datasets:"]
+        for file_path in sorted(csv_files):
+            file_size = file_path.stat().st_size
+            size_str = f"{file_size / 1024:.1f} KB" if file_size > 1024 else f"{file_size} bytes"
+
+            try:
+                df = pd.read_csv(file_path)
+                info = f"({df.shape[0]} rows, {df.shape[1]} cols)"
+            except:
+                info = "(unable to parse)"
+
+            result.append(f"• {file_path.name} - {size_str} {info}")
+
+        return "\n".join(result)
+
+    def delete_dataset(self, filename):
+        datasets_dir = Path("datasets")
+        file_path = datasets_dir / filename
+
+        if not file_path.exists():
+            return f"Dataset '{filename}' not found in datasets/ directory"
+
+        try:
+            file_path.unlink()
+            return f"Dataset '{filename}' deleted successfully"
+        except Exception as e:
+            return f"Error deleting dataset '{filename}': {str(e)}"
