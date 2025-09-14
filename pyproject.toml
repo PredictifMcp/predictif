@@ -5,14 +5,13 @@ description = "Prédictif is a MCP Server helping choose, train and exploit a mo
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "fastmcp>=2.12.3",
-    "pandas>=2.3.2",
-    "flask>=3.0.0",
-    "flask-cors>=4.0.0",
-    "mistralai>=1.0.0",
-    "requests",
-    "huggingface-hub",
-    "tabulate",
-    "joblib>=1.5.2",
-    "scikit-learn>=1.7.2",
+  "fastmcp>=2.12.3",
+  "pandas>=2.3.2",
+  "flask>=3.0.0",
+  "flask-cors>=4.0.0",
+  "mistralai>=1.0.0",
+  "requests",
+  "tabulate",
+  "joblib>=1.5.2",
+  "scikit-learn>=1.7.2",
 ]
