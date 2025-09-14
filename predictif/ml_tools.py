@@ -161,7 +161,7 @@ Class distribution:
                 train_ratio = f"{(1-test_size)*100:.1f}%" if isinstance(test_size, (int, float)) else "N/A"
                 test_ratio = f"{test_size*100:.1f}%" if isinstance(test_size, (int, float)) else "N/A"
 
-                model_summary = f"""┌─ Model: {model_uuid[:8]}...
+                model_summary = f"""┌─ Model UUID: {model_uuid}
 ├─ Type: {model_job.model_type}
 ├─ Status: {model_job.status}
 ├─ Accuracy: {metadata["accuracy"]:.4f} ({metadata["accuracy"]*100:.2f}%)
@@ -174,7 +174,7 @@ Class distribution:
 
                 models_info.append(model_summary)
             else:
-                models_info.append(f"┌─ Model: {model_uuid[:8]}...\n├─ Type: {model_job.model_type}\n├─ Status: {model_job.status}\n└─ Error: Unable to load metadata")
+                models_info.append(f"┌─ Model UUID: {model_uuid}\n├─ Type: {model_job.model_type}\n├─ Status: {model_job.status}\n└─ Error: Unable to load metadata")
 
         header = f"📊 Found {len(trained_models)} trained model{'s' if len(trained_models) != 1 else ''}:\n\n"
         footer = "\n\n💡 Use 'get_model_info' with a model UUID for more detailed information."
