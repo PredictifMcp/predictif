@@ -165,11 +165,11 @@ class MLManager:
 
             metadata = {
                 "model_type": model_type.value,
-                "accuracy": accuracy,
+                "accuracy": float(accuracy),
                 "feature_names": list(X.columns),
-                "classes": list(model.classes_),
-                "n_classes": len(model.classes_),
-                "dataset_shape": df.shape,
+                "classes": [int(cls) if hasattr(cls, 'item') else cls for cls in model.classes_],
+                "n_classes": int(len(model.classes_)),
+                "dataset_shape": [int(dim) for dim in df.shape],
                 "trained_at": datetime.now().isoformat(),
                 "model_params": model.get_params(),
             }
