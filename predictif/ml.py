@@ -89,7 +89,7 @@ class MLManager:
         return model_map[model_type]
 
     def train_model_from_file(
-        self, filename: str, model_type: ModelType
+        self, filename: str, model_type: ModelType, split_ratio: float
     ) -> Tuple[bool, str, str]:
         try:
             file_manager = FileManager()
@@ -105,13 +105,13 @@ class MLManager:
                 return False, "", f"Failed to save file: {save_result}"
 
             csv_path = f"datasets/{filename}"
-            return self.train_model_from_csv_path(csv_path, model_type)
+            return self.train_model_from_csv_path(csv_path, model_type, split_ratio)
 
         except Exception as e:
             return False, "", f"Training error: {str(e)}"
 
     def train_model_from_csv_path(
-        self, csv_path: str, model_type: ModelType
+        self, csv_path: str, model_type: ModelType, split_ratio: float
     ) -> Tuple[bool, str, str]:
         try:
             df = pd.read_csv(csv_path)
@@ -123,7 +123,7 @@ class MLManager:
             y = df["label"]
 
             X_train, X_test, y_train, y_test = train_test_split(
-                X, y, test_size=0.2, random_state=42, stratify=y
+                X, y, test_size=1 - split_ratio / 100, random_state=42, stratify=y
             )
 
             model = self._get_sklearn_model(model_type)

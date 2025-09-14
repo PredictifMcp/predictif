@@ -20,6 +20,7 @@ def register_ml_tools(mcp: FastMCP):
     def train_ml_model(
         filename: str = Field(description="Name of the CSV file to train on"),
         model_type: str = Field(default="random_forest", description="Model type: random_forest, svm, logistic_regression, gradient_boosting"),
+        split_ratio: float = Field(default=80, description="The ratio in percentage specifying how much of the data use for training and validation")
     ) -> str:
         try:
             model_type_enum = ModelType(model_type)
@@ -27,7 +28,7 @@ def register_ml_tools(mcp: FastMCP):
             return f"Invalid model type '{model_type}'. Valid options: {', '.join([t.value for t in ModelType])}"
 
         try:
-            success, user_uuid, message = ml_manager.train_model_from_file(filename, model_type_enum)
+            success, user_uuid, message = ml_manager.train_model_from_file(filename, model_type_enum, split_ratio)
             if success:
                 return f"Training completed!\nModel UUID: {user_uuid}\n{message}"
             else:
