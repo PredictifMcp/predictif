@@ -3,6 +3,7 @@ import io
 import pandas as pd
 from pathlib import Path
 from mistralai import Mistral
+from mistralai.models import File
 
 
 class FileManager:
@@ -21,6 +22,16 @@ class FileManager:
         for library in libraries:
             result += f"[{library.name}] -> ID: {library.id} | Documents: {library.nb_documents}\n"
         return result.strip()
+    
+    def get_library_id(self, library_name):
+        libraries = self.client.beta.libraries.list().data
+        if not libraries:
+            return "No libraries found for the current user."
+
+        for library in libraries:
+            if library_name == library.name:
+                return library.id
+        return f"No library ID found for a provided library name: {library_name}"
 
     def list_documents(self, library_id):
         doc_list = self.client.beta.libraries.documents.list(library_id=library_id).data
@@ -151,3 +162,11 @@ class FileManager:
             return f"Dataset '{filename}' deleted successfully"
         except Exception as e:
             return f"Error deleting dataset '{filename}': {str(e)}"
+        
+    def upload_document(self, library_id, filepath):
+        with open(filepath, "rb") as file_content:
+            uploaded_doc = self.client.beta.libraries.documents.upload(
+                library_id=library_id,
+                file=File(fileName=os.path.basename(filepath), content=file_content),
+            )
+        return "File with a model uploaded successfully"

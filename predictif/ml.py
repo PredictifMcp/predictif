@@ -96,7 +96,7 @@ class MLManager:
 
             # First check if dataset already exists locally
             if csv_path.exists():
-                return self.train_model_from_csv_path(str(csv_path), model_type)
+                return self.train_model_from_csv_path(str(csv_path), model_type, split_ratio)
 
             # If not found locally, search in libraries and provide helpful hint
             file_manager = FileManager()

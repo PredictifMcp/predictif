@@ -2,6 +2,7 @@
 MCP tools for ML training and prediction
 """
 
+import os
 from pathlib import Path
 from pydantic import Field
 from mcp.server.fastmcp import FastMCP
@@ -12,6 +13,7 @@ from .files import FileManager
 
 def register_ml_tools(mcp: FastMCP):
     ml_manager = MLManager()
+    file_manager = FileManager()
 
     @mcp.tool(
         title="Train ML Model",
@@ -170,3 +172,14 @@ Files:
         else:
             return f"Failed to delete model {user_uuid} (model not found)"
 
+    @mcp.tool(
+        title="Upload a model",
+        description="Upload a model to library"
+    )
+    def upload_model(
+        library_name: str = Field(description='Library name to which the file should be saved'),
+        model_uuid = Field(description="Model UUID to delete")
+    ) -> str:
+        library_id = file_manager.get_library_id(library_name)
+        filepath = os.path.join('models', model_uuid, 'model.pkl')
+        return file_manager.upload_document(library_id, filepath)
