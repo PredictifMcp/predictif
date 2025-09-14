@@ -277,8 +277,20 @@ Storage Information:
     )
     def upload_model(
         library_name: str = Field(description='Library name to which the file should be saved'),
-        model_uuid = Field(description="Model UUID to delete")
+        model_uuid = Field(description="The UUID of the model that should be uploaded")
     ) -> str:
         library_id = file_manager.get_library_id(library_name)
         filepath = os.path.join('models', model_uuid, 'model.pkl')
+        return file_manager.upload_document(library_id, filepath)
+    
+    @mcp.tool(
+        title="Upload model metadata",
+        description="Upload model metadata to library in the JSON format"
+    )
+    def upload_metadata(
+        library_name: str = Field(description='Library name to which the file should be saved'),
+        model_uuid = Field(description="The UUID of the model for which the metadata should be uploaded")
+    ) -> str:
+        library_id = file_manager.get_library_id(library_name)
+        filepath = os.path.join('models', model_uuid, 'metadata.json')
         return file_manager.upload_document(library_id, filepath)
