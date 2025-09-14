@@ -45,8 +45,8 @@ class MLManager:
         self.active_jobs: Dict[str, TrainingJob] = {}
         self._load_existing_models()
 
-    def _get_model_dir(self, user_uuid: str) -> Path:
-        return self.models_dir / user_uuid
+    def _get_model_dir(self, model_uuid: str) -> Path:
+        return self.models_dir / model_uuid
 
     def _load_existing_models(self):
         for user_dir in self.models_dir.iterdir():
@@ -56,20 +56,20 @@ class MLManager:
 
                 if model_file.exists() and metadata_file.exists():
                     try:
-                        user_uuid = user_dir.name
+                        model_uuid = user_dir.name
                         with open(metadata_file, "r") as f:
                             metadata = json.load(f)
 
                         job = TrainingJob(
-                            job_id=user_uuid,
-                            model_name=user_uuid,
+                            job_id=model_uuid,
+                            model_name=model_uuid,
                             status="completed",
                             model_type=metadata.get("model_type", "unknown"),
                             accuracy=metadata.get("accuracy"),
                             feature_names=metadata.get("feature_names", []),
                         )
 
-                        self.active_jobs[user_uuid] = job
+                        self.active_jobs[model_uuid] = job
                     except Exception:
                         continue
 
@@ -165,8 +165,8 @@ class MLManager:
             y_pred = model.predict(X_test)
             accuracy = accuracy_score(y_test, y_pred)
 
-            user_uuid = str(uuid.uuid4())
-            model_dir = self._get_model_dir(user_uuid)
+            model_uuid = str(uuid.uuid4())
+            model_dir = self._get_model_dir(model_uuid)
             model_dir.mkdir(exist_ok=True)
 
             joblib.dump(model, model_dir / "model.pkl")
@@ -189,36 +189,36 @@ class MLManager:
                 json.dump(metadata, f, indent=2)
 
             job = TrainingJob(
-                job_id=user_uuid,
-                model_name=user_uuid,
+                job_id=model_uuid,
+                model_name=model_uuid,
                 status="completed",
                 model_type=model_type.value,
                 accuracy=accuracy,
                 feature_names=list(X.columns),
             )
 
-            self.active_jobs[user_uuid] = job
+            self.active_jobs[model_uuid] = job
 
             return (
                 True,
-                user_uuid,
+                model_uuid,
                 f"Model trained successfully with accuracy: {accuracy:.4f}",
             )
 
         except Exception as e:
             return False, "", f"Training failed: {str(e)}"
 
-    def get_model(self, user_uuid: str) -> Optional[TrainingJob]:
-        return self.active_jobs.get(user_uuid)
+    def get_model(self, model_uuid: str) -> Optional[TrainingJob]:
+        return self.active_jobs.get(model_uuid)
 
     def list_all_models(self) -> Dict[str, TrainingJob]:
         return self.active_jobs.copy()
 
-    def get_model_info(self, user_uuid: str) -> Optional[Dict]:
-        if user_uuid not in self.active_jobs:
+    def get_model_info(self, model_uuid: str) -> Optional[Dict]:
+        if model_uuid not in self.active_jobs:
             return None
 
-        model_dir = self._get_model_dir(user_uuid)
+        model_dir = self._get_model_dir(model_uuid)
         metadata_file = model_dir / "metadata.json"
         model_file = model_dir / "model.pkl"
 
@@ -230,7 +230,7 @@ class MLManager:
                 metadata = json.load(f)
 
             return {
-                "model": self.active_jobs[user_uuid],
+                "model": self.active_jobs[model_uuid],
                 "metadata": metadata,
                 "files": {
                     "model_dir": str(model_dir),
@@ -242,12 +242,12 @@ class MLManager:
         except Exception:
             return None
 
-    def predict_from_csv_path(self, user_uuid: str, csv_path: str) -> Dict:
+    def predict_from_csv_path(self, model_uuid: str, csv_path: str) -> Dict:
         try:
-            if user_uuid not in self.active_jobs:
+            if model_uuid not in self.active_jobs:
                 return {"error": "Model not found"}
 
-            model_dir = self._get_model_dir(user_uuid)
+            model_dir = self._get_model_dir(model_uuid)
             model_file = model_dir / "model.pkl"
 
             if not model_file.exists():
@@ -274,7 +274,7 @@ class MLManager:
                     }
                 )
 
-            job = self.active_jobs[user_uuid]
+            job = self.active_jobs[model_uuid]
             return {
                 "predictions": results,
                 "model_info": {
@@ -286,15 +286,15 @@ class MLManager:
         except Exception as e:
             return {"error": str(e)}
 
-    def delete_model(self, user_uuid: str) -> bool:
+    def delete_model(self, model_uuid: str) -> bool:
         try:
-            if user_uuid in self.active_jobs:
-                model_dir = self._get_model_dir(user_uuid)
+            if model_uuid in self.active_jobs:
+                model_dir = self._get_model_dir(model_uuid)
                 if model_dir.exists():
                     import shutil
 
                     shutil.rmtree(model_dir)
-                del self.active_jobs[user_uuid]
+                del self.active_jobs[model_uuid]
                 return True
             return False
         except Exception:

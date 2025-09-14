@@ -17,7 +17,7 @@ def register_ml_tools(mcp: FastMCP):
 
     @mcp.tool(
         title="Train ML Model",
-        description="Train a machine learning model using a CSV file from libraries.",
+        description="Train a machine learning model using a CSV file from libraries. Returns a unique model UUID for future predictions.",
     )
     def train_ml_model(
         filename: str = Field(description="Name of the CSV file to train on"),
@@ -36,11 +36,11 @@ def register_ml_tools(mcp: FastMCP):
             return f"Invalid model type '{model_type}'. Valid options: {', '.join([t.value for t in ModelType])}"
 
         try:
-            success, user_uuid, message = ml_manager.train_model_from_file(
+            success, model_uuid, message = ml_manager.train_model_from_file(
                 filename, model_type_enum, test_size
             )
             if success:
-                return f"Training completed!\nModel UUID: {user_uuid}\n{message}"
+                return f"Training completed!\nModel UUID: {model_uuid}\n{message}"
             else:
                 # Check if this is a hint message about using save_document
                 if "save_document" in message.lower():
@@ -51,10 +51,10 @@ def register_ml_tools(mcp: FastMCP):
 
     @mcp.tool(
         title="Make Prediction",
-        description="Make predictions using a trained model and dataset file from libraries.",
+        description="Make predictions using a trained model and dataset file from libraries",
     )
     def predict_with_model(
-        model_uuid: str = Field(description="Model UUID from training"),
+        model_uuid: str = Field(description="The unique identifier (UUID) of the trained model to use for predictions"),
         filename: str = Field(description="Name of the CSV dataset file to predict on"),
     ) -> str:
         try:
@@ -127,8 +127,8 @@ Class distribution:
             return f"Prediction error: {str(e)}"
 
     @mcp.tool(
-        title="List Available Models Types",
-        description="List all availables model types for training",
+        title="List Available Model Types",
+        description="List all supported machine learning model types available for training",
     )
     def list_supported_models() -> str:
         model_types = [model_type.value for model_type in ModelType]
@@ -138,13 +138,13 @@ Class distribution:
 
     @mcp.tool(
         title="List Trained Models",
-        description="List all trained models with their detailed information and metrics",
+        description="List all currently trained models with their UUIDs, performance metrics, and detailed information",
     )
     def list_trained_models() -> str:
         trained_models = ml_manager.list_all_models()
 
         if not trained_models:
-            return "No trained models found in the models directory."
+            return "No trained models found in the models directory. Train a model first using the 'train_ml_model' tool."
 
         models_info = []
         for model_uuid, model_job in trained_models.items():
@@ -176,19 +176,20 @@ Class distribution:
             else:
                 models_info.append(f"┌─ Model: {model_uuid[:8]}...\n├─ Type: {model_job.model_type}\n├─ Status: {model_job.status}\n└─ Error: Unable to load metadata")
 
-        header = f"Found {len(trained_models)} trained model{'s' if len(trained_models) != 1 else ''}:\n\n"
-        return header + "\n\n".join(models_info)
+        header = f"📊 Found {len(trained_models)} trained model{'s' if len(trained_models) != 1 else ''}:\n\n"
+        footer = "\n\n💡 Use 'get_model_info' with a model UUID for more detailed information."
+        return header + "\n\n".join(models_info) + footer
 
     @mcp.tool(
         title="Get Model Info",
-        description="Get detailed information about a trained model",
+        description="Get detailed information about a specific trained model by its UUID",
     )
     def get_model_info(
-        user_uuid: str = Field(description="Model UUID to get info for"),
+        model_uuid: str = Field(description="The unique identifier (UUID) of the trained model to get information for"),
     ) -> str:
-        model_info = ml_manager.get_model_info(user_uuid)
+        model_info = ml_manager.get_model_info(model_uuid)
         if not model_info:
-            return f"Model '{user_uuid}' not found."
+            return f"Model '{model_uuid}' not found."
 
         model = model_info["model"]
         metadata = model_info["metadata"]
@@ -229,7 +230,7 @@ Class distribution:
                 f"max_depth: {model_params.get('max_depth', 'N/A')}"
             ])
 
-        return f"""Model Information: {user_uuid}
+        return f"""Model Information: {model_uuid}
 
 Performance Metrics:
 • Accuracy: {metadata["accuracy"]:.4f} ({metadata["accuracy"]*100:.2f}%)
@@ -260,16 +261,16 @@ Storage Information:
 
     @mcp.tool(
         title="Delete Model",
-        description="Delete a trained model and its files",
+        description="Delete a trained model and all its associated files from storage",
     )
     def delete_model(
-        user_uuid: str = Field(description="Model UUID to delete"),
+        model_uuid: str = Field(description="The unique identifier (UUID) of the trained model to delete"),
     ) -> str:
-        success = ml_manager.delete_model(user_uuid)
+        success = ml_manager.delete_model(model_uuid)
         if success:
-            return f"Model {user_uuid} deleted successfully"
+            return f"Model {model_uuid} deleted successfully"
         else:
-            return f"Failed to delete model {user_uuid} (model not found)"
+            return f"Failed to delete model {model_uuid} (model not found)"
 
     @mcp.tool(
         title="Upload a model",
