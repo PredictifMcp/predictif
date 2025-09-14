@@ -21,8 +21,14 @@ def register_ml_tools(mcp: FastMCP):
     )
     def train_ml_model(
         filename: str = Field(description="Name of the CSV file to train on"),
-        model_type: str = Field(default="random_forest", description="Model type: random_forest, svm, logistic_regression, gradient_boosting"),
-        split_ratio: float = Field(default=80, description="The ratio in percentage specifying how much of the data use for training and validation")
+        model_type: str = Field(
+            default="random_forest",
+            description="Model type: random_forest, svm, logistic_regression, gradient_boosting",
+        ),
+        test_size: float = Field(
+            default=0.2,
+            description="Fraction of dataset to use for testing (0.0 < test_size < 1.0). Default is 0.2 (20% for testing)",
+        ),
     ) -> str:
         try:
             model_type_enum = ModelType(model_type)
@@ -30,7 +36,9 @@ def register_ml_tools(mcp: FastMCP):
             return f"Invalid model type '{model_type}'. Valid options: {', '.join([t.value for t in ModelType])}"
 
         try:
-            success, user_uuid, message = ml_manager.train_model_from_file(filename, model_type_enum, split_ratio)
+            success, user_uuid, message = ml_manager.train_model_from_file(
+                filename, model_type_enum, test_size
+            )
             if success:
                 return f"Training completed!\nModel UUID: {user_uuid}\n{message}"
             else:
@@ -129,6 +137,49 @@ Class distribution:
         )
 
     @mcp.tool(
+        title="List Trained Models",
+        description="List all trained models with their detailed information and metrics",
+    )
+    def list_trained_models() -> str:
+        trained_models = ml_manager.list_all_models()
+
+        if not trained_models:
+            return "No trained models found in the models directory."
+
+        models_info = []
+        for model_uuid, model_job in trained_models.items():
+            model_info = ml_manager.get_model_info(model_uuid)
+
+            if model_info:
+                metadata = model_info["metadata"]
+                files = model_info["files"]
+
+                test_size = metadata.get("test_size", 0.2)
+                train_samples = metadata.get("train_samples", "N/A")
+                test_samples = metadata.get("test_samples", "N/A")
+
+                train_ratio = f"{(1-test_size)*100:.1f}%" if isinstance(test_size, (int, float)) else "N/A"
+                test_ratio = f"{test_size*100:.1f}%" if isinstance(test_size, (int, float)) else "N/A"
+
+                model_summary = f"""┌─ Model: {model_uuid[:8]}...
+├─ Type: {model_job.model_type}
+├─ Status: {model_job.status}
+├─ Accuracy: {metadata["accuracy"]:.4f} ({metadata["accuracy"]*100:.2f}%)
+├─ Trained: {metadata["trained_at"][:19].replace("T", " ")}
+├─ Dataset: {metadata["dataset_shape"]} samples, {len(metadata["feature_names"])} features
+├─ Classes: {metadata["n_classes"]} ({metadata["classes"]})
+├─ Split: {train_ratio} train / {test_ratio} test ({train_samples}/{test_samples})
+├─ Features: {", ".join(metadata["feature_names"][:3])}{"..." if len(metadata["feature_names"]) > 3 else ""}
+└─ Size: {files["model_size_mb"]} MB"""
+
+                models_info.append(model_summary)
+            else:
+                models_info.append(f"┌─ Model: {model_uuid[:8]}...\n├─ Type: {model_job.model_type}\n├─ Status: {model_job.status}\n└─ Error: Unable to load metadata")
+
+        header = f"Found {len(trained_models)} trained model{'s' if len(trained_models) != 1 else ''}:\n\n"
+        return header + "\n\n".join(models_info)
+
+    @mcp.tool(
         title="Get Model Info",
         description="Get detailed information about a trained model",
     )
@@ -143,21 +194,69 @@ Class distribution:
         metadata = model_info["metadata"]
         files = model_info["files"]
 
+        test_size = metadata.get("test_size", 0.2)
+        train_samples = metadata.get("train_samples", "N/A")
+        test_samples = metadata.get("test_samples", "N/A")
+        total_samples = train_samples + test_samples if isinstance(train_samples, int) and isinstance(test_samples, int) else "N/A"
+
+        train_ratio = f"{(1-test_size):.1%}" if isinstance(test_size, (int, float)) else "N/A"
+        test_ratio = f"{test_size:.1%}" if isinstance(test_size, (int, float)) else "N/A"
+
+        model_params = metadata.get("model_params", {})
+        key_params = []
+        if model.model_type == "random_forest":
+            key_params.extend([
+                f"n_estimators: {model_params.get('n_estimators', 'N/A')}",
+                f"max_depth: {model_params.get('max_depth', 'N/A')}",
+                f"min_samples_split: {model_params.get('min_samples_split', 'N/A')}"
+            ])
+        elif model.model_type == "svm":
+            key_params.extend([
+                f"C: {model_params.get('C', 'N/A')}",
+                f"kernel: {model_params.get('kernel', 'N/A')}",
+                f"gamma: {model_params.get('gamma', 'N/A')}"
+            ])
+        elif model.model_type == "logistic_regression":
+            key_params.extend([
+                f"C: {model_params.get('C', 'N/A')}",
+                f"max_iter: {model_params.get('max_iter', 'N/A')}",
+                f"solver: {model_params.get('solver', 'N/A')}"
+            ])
+        elif model.model_type == "gradient_boosting":
+            key_params.extend([
+                f"n_estimators: {model_params.get('n_estimators', 'N/A')}",
+                f"learning_rate: {model_params.get('learning_rate', 'N/A')}",
+                f"max_depth: {model_params.get('max_depth', 'N/A')}"
+            ])
+
         return f"""Model Information: {user_uuid}
 
-Type: {model.model_type}
-Status: {model.status}
-Accuracy: {metadata["accuracy"]:.4f}
-Trained: {metadata["trained_at"][:19].replace("T", " ")}
+Performance Metrics:
+• Accuracy: {metadata["accuracy"]:.4f} ({metadata["accuracy"]*100:.2f}%)
+• Model Type: {model.model_type}
+• Status: {model.status}
+• Trained: {metadata["trained_at"][:19].replace("T", " ")}
 
-Dataset Info:
-• Shape: {metadata["dataset_shape"]}
+Dataset Configuration:
+• Total Samples: {total_samples}
+• Dataset Shape: {metadata["dataset_shape"]} (rows × features)
+• Feature Count: {len(metadata["feature_names"])}
 • Features: {", ".join(metadata["feature_names"])}
-• Classes: {metadata["n_classes"]} ({metadata["classes"]})
+• Target Classes: {metadata["n_classes"]} classes {metadata["classes"]}
 
-Files:
+Train/Test Split Details:
+• Split Ratio: {train_ratio} train / {test_ratio} test
+• Test Size Parameter: {test_size}
+• Training Samples: {train_samples}
+• Testing Samples: {test_samples}
+
+Model Hyperparameters:
+{chr(10).join([f"• {param}" for param in key_params]) if key_params else "• Default parameters used"}
+
+Storage Information:
 • Directory: {files["model_dir"]}
-• Size: {files["model_size_mb"]} MB"""
+• Model Size: {files["model_size_mb"]} MB
+• Random State: {model_params.get('random_state', 'N/A')}"""
 
     @mcp.tool(
         title="Delete Model",
