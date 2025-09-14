@@ -19,7 +19,10 @@ def register_ml_tools(mcp: FastMCP):
     )
     def train_ml_model(
         filename: str = Field(description="Name of the CSV file to train on"),
-        model_type: str = Field(default="random_forest", description="Model type: random_forest, svm, logistic_regression, gradient_boosting"),
+        model_type: str = Field(
+            default="random_forest",
+            description="Model type: random_forest, svm, logistic_regression, gradient_boosting",
+        ),
     ) -> str:
         try:
             model_type_enum = ModelType(model_type)
@@ -27,10 +30,15 @@ def register_ml_tools(mcp: FastMCP):
             return f"Invalid model type '{model_type}'. Valid options: {', '.join([t.value for t in ModelType])}"
 
         try:
-            success, user_uuid, message = ml_manager.train_model_from_file(filename, model_type_enum)
+            success, user_uuid, message = ml_manager.train_model_from_file(
+                filename, model_type_enum
+            )
             if success:
                 return f"Training completed!\nModel UUID: {user_uuid}\n{message}"
             else:
+                # Check if this is a hint message about using save_document
+                if "save_document" in message.lower():
+                    return f"📁 Dataset Required: {message}"
                 return f"Training failed: {message}"
         except Exception as e:
             return f"Training error: {str(e)}"
@@ -48,17 +56,27 @@ def register_ml_tools(mcp: FastMCP):
             if not model:
                 available_models = ml_manager.list_all_models()
                 if available_models:
-                    models_list = [f"{uuid}: {job.model_type}" for uuid, job in available_models.items()]
-                    return f"Model '{model_uuid}' not found. Available models:\n" + "\n".join(models_list)
+                    models_list = [
+                        f"{uuid}: {job.model_type}"
+                        for uuid, job in available_models.items()
+                    ]
+                    return (
+                        f"Model '{model_uuid}' not found. Available models:\n"
+                        + "\n".join(models_list)
+                    )
                 else:
-                    return f"Model '{model_uuid}' not found. No trained models available."
+                    return (
+                        f"Model '{model_uuid}' not found. No trained models available."
+                    )
 
             file_manager = FileManager()
             file_info = file_manager.find_file(filename)
             if not file_info:
                 return f"File '{filename}' not found in any library."
 
-            save_result = file_manager.save_document(file_info['library_id'], file_info['document_id'])
+            save_result = file_manager.save_document(
+                file_info["library_id"], file_info["document_id"]
+            )
             if "Error" in save_result:
                 return f"Failed to save file: {save_result}"
 
@@ -83,10 +101,12 @@ def register_ml_tools(mcp: FastMCP):
 
             sample_predictions = []
             for i, pred in enumerate(predictions[:5]):
-                sample_predictions.append(f"Row {i + 1}: {pred['prediction']} (confidence: {pred['max_probability']:.3f})")
+                sample_predictions.append(
+                    f"Row {i + 1}: {pred['prediction']} (confidence: {pred['max_probability']:.3f})"
+                )
 
             return f"""Prediction completed!
-Model: {model_info['model_type']} (accuracy: {model_info['accuracy']:.3f})
+Model: {model_info["model_type"]} (accuracy: {model_info["accuracy"]:.3f})
 Dataset: {csv_path}
 Total predictions: {len(predictions)}
 
@@ -101,12 +121,14 @@ Class distribution:
             return f"Prediction error: {str(e)}"
 
     @mcp.tool(
-        title="List Supported Models",
-        description="List all supported model types for training",
+        title="List Available Models Types",
+        description="List all availables model types for training",
     )
     def list_supported_models() -> str:
         model_types = [model_type.value for model_type in ModelType]
-        return f"Supported model types:\n" + "\n".join([f"• {model_type}" for model_type in model_types])
+        return f"Supported model types:\n" + "\n".join(
+            [f"• {model_type}" for model_type in model_types]
+        )
 
     @mcp.tool(
         title="Get Model Info",
@@ -151,3 +173,4 @@ Files:
             return f"Model {user_uuid} deleted successfully"
         else:
             return f"Failed to delete model {user_uuid} (model not found)"
+

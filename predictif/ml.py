@@ -92,20 +92,33 @@ class MLManager:
         self, filename: str, model_type: ModelType
     ) -> Tuple[bool, str, str]:
         try:
+            csv_path = Path("datasets") / filename
+
+            # First check if dataset already exists locally
+            if csv_path.exists():
+                return self.train_model_from_csv_path(str(csv_path), model_type)
+
+            # If not found locally, search in libraries and provide helpful hint
             file_manager = FileManager()
-
             file_info = file_manager.find_file(filename)
+
             if not file_info:
-                return False, "", f"File '{filename}' not found in any library"
+                return (
+                    False,
+                    "",
+                    f"Dataset '{filename}' not found in datasets/ folder. "
+                    f"File also not found in any library. "
+                    f"Please ensure the file exists in your libraries, then use the 'save_document' function to download it to datasets/"
+                )
 
-            save_result = file_manager.save_document(
-                file_info["library_id"], file_info["document_id"]
+            # File found in library - provide hint to agent
+            return (
+                False,
+                "",
+                f"Dataset '{filename}' not found in datasets/ folder, but found in library '{file_info['library_name']}'. "
+                f"Please call save_document with library_id='{file_info['library_id']}' and document_id='{file_info['document_id']}' "
+                f"to download the file before training."
             )
-            if "Error" in save_result:
-                return False, "", f"Failed to save file: {save_result}"
-
-            csv_path = f"datasets/{filename}"
-            return self.train_model_from_csv_path(csv_path, model_type)
 
         except Exception as e:
             return False, "", f"Training error: {str(e)}"
@@ -114,6 +127,13 @@ class MLManager:
         self, csv_path: str, model_type: ModelType
     ) -> Tuple[bool, str, str]:
         try:
+            csv_path_obj = Path(csv_path)
+            if not csv_path_obj.exists():
+                return False, "", f"CSV file not found at path: {csv_path}"
+
+            if not csv_path_obj.suffix.lower() == '.csv':
+                return False, "", f"File must be a CSV file, got: {csv_path_obj.suffix}"
+
             df = pd.read_csv(csv_path)
 
             if "label" not in df.columns:
