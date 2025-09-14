@@ -274,11 +274,11 @@ Storage Information:
 
     @mcp.tool(
         title="Upload a model",
-        description="Upload a model to library"
+        description="Upload a trained model file to a specified library"
     )
     def upload_model(
         library_name: str = Field(description='Library name to which the file should be saved'),
-        model_uuid = Field(description="The UUID of the model that should be uploaded")
+        model_uuid: str = Field(description="The UUID of the model that should be uploaded")
     ) -> str:
         library_id = file_manager.get_library_id(library_name)
         filepath = os.path.join('models', model_uuid, 'model.pkl')
@@ -286,11 +286,11 @@ Storage Information:
     
     @mcp.tool(
         title="Upload model metadata",
-        description="Upload model metadata to library in the JSON format"
+        description="Upload model metadata to library in JSON format"
     )
     def upload_metadata(
         library_name: str = Field(description='Library name to which the file should be saved'),
-        model_uuid = Field(description="The UUID of the model for which the metadata should be uploaded")
+        model_uuid: str = Field(description="The UUID of the model for which the metadata should be uploaded")
     ) -> str:
         library_id = file_manager.get_library_id(library_name)
         filepath = os.path.join('models', model_uuid, 'metadata.json')
