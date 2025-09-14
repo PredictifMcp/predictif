@@ -89,14 +89,18 @@ class MLManager:
         return model_map[model_type]
 
     def train_model_from_file(
-        self, filename: str, model_type: ModelType, split_ratio: float
+        self, filename: str, model_type: ModelType, test_size: float = 0.2
     ) -> Tuple[bool, str, str]:
         try:
             csv_path = Path("datasets") / filename
 
+            # Validate test_size parameter
+            if not (0.0 < test_size < 1.0):
+                return False, "", f"test_size must be between 0.0 and 1.0, got {test_size}"
+
             # First check if dataset already exists locally
             if csv_path.exists():
-                return self.train_model_from_csv_path(str(csv_path), model_type)
+                return self.train_model_from_csv_path(str(csv_path), model_type, test_size)
 
             # If not found locally, search in libraries and provide helpful hint
             file_manager = FileManager()
@@ -129,9 +133,13 @@ class MLManager:
             return False, "", f"Training error: {str(e)}"
 
     def train_model_from_csv_path(
-        self, csv_path: str, model_type: ModelType, split_ratio: float
+        self, csv_path: str, model_type: ModelType, test_size: float = 0.2
     ) -> Tuple[bool, str, str]:
         try:
+            # Validate test_size parameter
+            if not (0.0 < test_size < 1.0):
+                return False, "", f"test_size must be between 0.0 and 1.0, got {test_size}"
+
             csv_path_obj = Path(csv_path)
             if not csv_path_obj.exists():
                 return False, "", f"CSV file not found at path: {csv_path}"
@@ -148,7 +156,7 @@ class MLManager:
             y = df["label"]
 
             X_train, X_test, y_train, y_test = train_test_split(
-                X, y, test_size=1 - split_ratio / 100, random_state=42, stratify=y
+                X, y, test_size=test_size, random_state=42, stratify=y
             )
 
             model = self._get_sklearn_model(model_type)
@@ -170,6 +178,9 @@ class MLManager:
                 "classes": [int(cls) if hasattr(cls, 'item') else cls for cls in model.classes_],
                 "n_classes": int(len(model.classes_)),
                 "dataset_shape": [int(dim) for dim in df.shape],
+                "test_size": float(test_size),
+                "train_samples": int(len(X_train)),
+                "test_samples": int(len(X_test)),
                 "trained_at": datetime.now().isoformat(),
                 "model_params": model.get_params(),
             }

@@ -19,8 +19,14 @@ def register_ml_tools(mcp: FastMCP):
     )
     def train_ml_model(
         filename: str = Field(description="Name of the CSV file to train on"),
-        model_type: str = Field(default="random_forest", description="Model type: random_forest, svm, logistic_regression, gradient_boosting"),
-        split_ratio: float = Field(default=80, description="The ratio in percentage specifying how much of the data use for training and validation")
+        model_type: str = Field(
+            default="random_forest",
+            description="Model type: random_forest, svm, logistic_regression, gradient_boosting",
+        ),
+        test_size: float = Field(
+            default=0.2,
+            description="Fraction of dataset to use for testing (0.0 < test_size < 1.0). Default is 0.2 (20% for testing)",
+        ),
     ) -> str:
         try:
             model_type_enum = ModelType(model_type)
@@ -28,7 +34,9 @@ def register_ml_tools(mcp: FastMCP):
             return f"Invalid model type '{model_type}'. Valid options: {', '.join([t.value for t in ModelType])}"
 
         try:
-            success, user_uuid, message = ml_manager.train_model_from_file(filename, model_type_enum, split_ratio)
+            success, user_uuid, message = ml_manager.train_model_from_file(
+                filename, model_type_enum, test_size
+            )
             if success:
                 return f"Training completed!\nModel UUID: {user_uuid}\n{message}"
             else:
@@ -152,6 +160,11 @@ Dataset Info:
 • Shape: {metadata["dataset_shape"]}
 • Features: {", ".join(metadata["feature_names"])}
 • Classes: {metadata["n_classes"]} ({metadata["classes"]})
+
+Training Split:
+• Test size: {metadata.get("test_size", 0.2):.1%}
+• Train samples: {metadata.get("train_samples", "N/A")}
+• Test samples: {metadata.get("test_samples", "N/A")}
 
 Files:
 • Directory: {files["model_dir"]}
